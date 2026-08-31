@@ -1,0 +1,38 @@
+# ─── Configuración de despliegue en Fly.io ──────────────────────────────────
+# Plataforma POA — Sección de Conservación y Restauración, Centro INAH Yucatán
+#
+# Antes de desplegar por primera vez:
+#   1) Cambia "app" por el nombre que elijas (debe ser único en Fly.io).
+#   2) Crea el volumen persistente (una sola vez):
+#        fly volumes create poa_datos --region qro --size 1
+#   3) Despliega:
+#        fly deploy
+# El volumen guarda la base de datos y las fotos; sobrevive a cada actualización.
+
+app = "poa-inah-yucatan"          # ← CÁMBIALO por un nombre único
+primary_region = "qro"            # Querétaro, México (lo más cercano a Yucatán)
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  TZ = "America/Merida"
+  # La cookie de sesión sólo viaja por HTTPS cuando está en línea (Fly da HTTPS).
+  POA_COOKIE_SEGURA = "1"
+
+# La base y las fotos viven en un volumen persistente montado donde la app las busca.
+[mounts]
+  source = "poa_datos"
+  destination = "/app/servidor_poa/datos"
+
+[http_service]
+  internal_port = 8000
+  force_https = true              # redirige todo el tráfico HTTP a HTTPS
+  auto_stop_machines = "stop"     # se apaga sola si nadie la usa (ahorra costo)
+  auto_start_machines = true      # se enciende sola al primer acceso
+  min_machines_running = 0
+  # SQLite + volumen exigen UNA sola máquina: no subir a 2 o se corrompe la base.
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block titulo %}Personal{% endblock %}
+{% block encabezado %}Personal de la Sección{% endblock %}
+{% block subtitulo %}Quién aparece en la lista de entrada.{% endblock %}
+
+{% block acciones %}
+<a class="btn sm" href="/mi-pin">Cambiar mi PIN</a>
+{% endblock %}
+
+{% block contenido %}
+<section class="card">
+  <p class="muted">
+    No hay contraseñas: cada quien entra eligiendo su nombre. Si desactivas a alguien,
+    deja de aparecer en la lista. La coordinación es la única que usa PIN, y sólo para
+    esta pantalla y el Consolidado.
+  </p>
+
+  <div class="table-wrap" style="margin-top:14px">
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th><th>Cargo</th><th>Participaciones</th>
+          <th>Estado</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in usuarios %}
+        <tr>
+          <td>
+            {{ p.nombre }}
+            {% if p.es_admin %}<span class="tag">Coordinación</span>{% endif %}
+            {% if p.es_responsable %}<span class="tag">Responsable</span>{% endif %}
+          </td>
+          <td>{{ p.cargo }}</td>
+          <td>{{ p.participaciones }}</td>
+          <td>
+            {% if p.activo %}Aparece en la lista{% else %}<span class="muted">Desactivada</span>{% endif %}
+            {% if p.es_admin and not p.pin_hash %}
+            <br><span class="muted" style="font-size:11px">Sin PIN definido</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if p.es_admin and p.id != u.id %}
+            <form method="post" action="/admin/usuarios/{{ p.id }}/olvide-pin"
+                  style="display:inline"
+                  onsubmit="return confirm('Se borra el PIN de {{ p.nombre }} y definirá uno nuevo la próxima vez que entre. ¿Continuar?')">
+              <button class="btn sm" type="submit">Olvidó su PIN</button>
+            </form>
+            {% endif %}
+            {% if p.id != u.id %}
+            <form method="post" action="/admin/usuarios/{{ p.id }}/activo" style="display:inline">
+              <button class="btn sm" type="submit">{{ 'Desactivar' if p.activo else 'Activar' }}</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,602 @@
+{
+  "catalog_headers": [
+    "Actividad POA",
+    "Unidad de Medida",
+    "Programa Operativo",
+    "Eje",
+    "Línea de acción ENC",
+    "Eje estratégico ENC"
+  ],
+  "activities_count": 67,
+  "activities": [
+    {
+      "Actividad POA": "Acciones para prevenir y combatir el saqueo y/o tráfico ilícito del patrimonio cultural",
+      "Unidad de Medida": "Informe presentado",
+      "Programa Operativo": "Programa de protección legal del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": 0,
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Apoyo otorgado para la presentación de exposiciones temporales e itinerantes",
+      "Unidad de Medida": "Exposición gestionada",
+      "Programa Operativo": "Programa de exposiciones",
+      "Eje": "Difusión y Divulgación",
+      "Línea de acción ENC": "Difusión",
+      "Eje estratégico ENC": "Comunicación"
+    },
+    {
+      "Actividad POA": "Aseguramiento de bienes culturales muebles a resguardo del INAH, así como bienes propiedad de particulares durante su traslado, estancia y reintegro a su lugar de origen de resguardo",
+      "Unidad de Medida": "Solicitud atendida",
+      "Programa Operativo": "Programa de protección técnica del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": 0,
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Atención de denuncias por robo, saqueo, destrucción o cualquier otro ilícito que se cometa en contra del patrimonio cultural",
+      "Unidad de Medida": "Denuncia atendida",
+      "Programa Operativo": "Programa de protección legal del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Atención a denuncias ciudadanas ",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Atender solicitudes de comunidades para la conservación de bienes muebles y muebles asociados al inmueble",
+      "Unidad de Medida": "Solicitud atendida",
+      "Programa Operativo": "Programa para el desarrollo de acciones de vinculación institucional y comunitaria",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Vinculación social",
+      "Eje estratégico ENC": "Atención a comunidades"
+    },
+    {
+      "Actividad POA": "Brindar asesorías legales derivadas de posibles afectaciones al patrimonio histórico, arqueológico y/o paleontológico",
+      "Unidad de Medida": "Asesoría otorgada",
+      "Programa Operativo": "Programa de protección legal del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Asesorías técnico-legales",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Brindar asesorías para la conservación y manejo del patrimonio histórico documental",
+      "Unidad de Medida": "Asesoría otorgada",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles de carácter histórico",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Asesorías técnico-legales",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Capacitación recibida a través de cursos, talleres y encuentros de actualización para mejorar el desempeño del trabajo realizado de acuerdo a las atribuciones y ámbito de competencia de cada servidor público",
+      "Unidad de Medida": "Curso, taller o videoconferencia recibido",
+      "Programa Operativo": "Programa de capacitación y actualización en materia de conservación de bienes muebles y muebles asociados a inmuebles",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Capacitación",
+      "Eje estratégico ENC": "Educación"
+    },
+    {
+      "Actividad POA": "Celebrar sesiones plenarias de conservación-restauración, que promuevan el trabajo interdisciplinar y coordinado en materia de conservación del patrimonio competencia del INAH",
+      "Unidad de Medida": "Sesión celebrada",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Intrainstitucional",
+      "Eje estratégico ENC": "Vinculación"
+    },
+    {
+      "Actividad POA": "Conservación de bienes culturales muebles asociados a inmuebles de carácter arqueológico y/o paleontológico",
+      "Unidad de Medida": "Bien mueble arqueológico conservado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles de carácter arqueológico y/o paleontológico",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Conservación directa",
+      "Eje estratégico ENC": "Conservación"
+    },
+    {
+      "Actividad POA": "Conservación de bienes culturales muebles asociados a inmuebles de carácter histórico",
+      "Unidad de Medida": "Bien mueble histórico conservado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles de carácter histórico",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Conservación directa",
+      "Eje estratégico ENC": "Conservación"
+    },
+    {
+      "Actividad POA": "Conservación de bienes culturales muebles de carácter arqueológico y/o paleontológico",
+      "Unidad de Medida": "Bien mueble arqueológico conservado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles de carácter arqueológico y/o paleontológico",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Conservación directa",
+      "Eje estratégico ENC": "Conservación"
+    },
+    {
+      "Actividad POA": "Conservación de bienes culturales muebles de carácter histórico",
+      "Unidad de Medida": "Bien mueble histórico conservado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles de carácter histórico",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Conservación directa",
+      "Eje estratégico ENC": "Conservación"
+    },
+    {
+      "Actividad POA": "Conservación preventiva de bienes muebles asociados a inmuebles de carácter arqueológico/paleontológico",
+      "Unidad de Medida": "Bien mueble arqueológico conservado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles de carácter arqueológico y/o paleontológico",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Conservación preventiva",
+      "Eje estratégico ENC": "Conservación"
+    },
+    {
+      "Actividad POA": "Conservación preventiva de bienes muebles asociados a inmuebles de carácter histórico",
+      "Unidad de Medida": "Bien mueble histórico conservado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles de carácter histórico",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Conservación preventiva",
+      "Eje estratégico ENC": "Conservación"
+    },
+    {
+      "Actividad POA": "Conservación preventiva de bienes muebles de carácter arqueológico/paleontológico",
+      "Unidad de Medida": "Bien mueble arqueológico conservado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles de carácter arqueológico y/o paleontológico",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Conservación preventiva",
+      "Eje estratégico ENC": "Conservación"
+    },
+    {
+      "Actividad POA": "Conservación preventiva de bienes muebles de carácter histórico",
+      "Unidad de Medida": "Bien mueble histórico conservado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles de carácter histórico",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Conservación preventiva",
+      "Eje estratégico ENC": "Conservación"
+    },
+    {
+      "Actividad POA": "Conservación y/o restauración a acervos fotográficos, bibliográficos, mecanográficos, audiovisuales y sonoros",
+      "Unidad de Medida": "Acervo conservado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Conservación directa",
+      "Eje estratégico ENC": "Conservación"
+    },
+    {
+      "Actividad POA": "Diagnosticar integralmente sobre el estado de conservación de bienes muebles y muebles asociados al inmueble",
+      "Unidad de Medida": "Diagnóstico elaborado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Diagnósticos",
+      "Eje estratégico ENC": "Conservación"
+    },
+    {
+      "Actividad POA": "Dictaminación en materia de conservación de bienes muebles y muebles asociados a inmuebles de carácter histórico, arqueológico y/o paleontológico",
+      "Unidad de Medida": "Dictamen elaborado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Dictámenes",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Difusión y divulgación de las labores de conservación a través de los diferentes medios de comunicación (radio, televisión, redes sociales, ferias, festivales, etc.)",
+      "Unidad de Medida": "Actividades para la divulgación y difusión realizadas",
+      "Programa Operativo": "Programa de promoción, gestión y difusión cultural",
+      "Eje": "Difusión y Divulgación",
+      "Línea de acción ENC": "Difusión y divulgación",
+      "Eje estratégico ENC": "Comunicación"
+    },
+    {
+      "Actividad POA": "Diseñar y elaborar acciones de vinculación comunitaria",
+      "Unidad de Medida": "Acciones de inclusión",
+      "Programa Operativo": "Programa de atención integral a comunidades en materia de conservación de bienes culturales muebles y muebles asociados a inmuebles",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Vinculación social",
+      "Eje estratégico ENC": "Atención a comunidades"
+    },
+    {
+      "Actividad POA": "Elaboración de inventario del acervo bajo custodia del INAH",
+      "Unidad de Medida": "Inventario realizado",
+      "Programa Operativo": "Programa de manejo de inventarios de bienes culturales y colecciones en resguardo del INAH",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Registro, inventario y catalogación",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Elaboración y diseño de materiales de difusión",
+      "Unidad de Medida": "Diseño elaborado",
+      "Programa Operativo": "Programa de promoción, gestión y difusión cultural",
+      "Eje": "Difusión y Divulgación",
+      "Línea de acción ENC": "Difusión",
+      "Eje estratégico ENC": "Comunicación"
+    },
+    {
+      "Actividad POA": "Elaborar diagnósticos técnicos del patrimonio histórico/arqueológicos/subacuáticos/paleontológicos",
+      "Unidad de Medida": "Diagnóstico elaborado",
+      "Programa Operativo": "Programa de protección técnica de bienes históricos",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Diagnósticos",
+      "Eje estratégico ENC": "Conservación"
+    },
+    {
+      "Actividad POA": "Elaborar informes de resultados finales de investigación para la conservación del patrimonio histórico, arqueológico, subacuático, paleontológico",
+      "Unidad de Medida": "Informe revisado",
+      "Programa Operativo": "Programa de investigación en materia conservación",
+      "Eje": "Investigación",
+      "Línea de acción ENC": "Proyectos",
+      "Eje estratégico ENC": "Investigación"
+    },
+    {
+      "Actividad POA": "Elaborar informes técnicos parciales y/o finales, o documentos relativos a la conservación del patrimonio arqueológico y/o paleontológico",
+      "Unidad de Medida": "Informe elaborado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles de carácter arqueológico y/o paleontológico",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Estudios",
+      "Eje estratégico ENC": "Investigación"
+    },
+    {
+      "Actividad POA": "Elaborar informes técnicos parciales y/o finales, o documentos relativos a la conservación del patrimonio histórico",
+      "Unidad de Medida": "Informe elaborado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles de carácter histórico",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Estudios",
+      "Eje estratégico ENC": "Investigación"
+    },
+    {
+      "Actividad POA": "Elaborar informes técnicos parciales y/o finales, o documentos relativos a la vinculación con comunidades en materia de conservación",
+      "Unidad de Medida": "Documento elaborado",
+      "Programa Operativo": "Programa de atención integral a comunidades en materia de conservación de bienes culturales muebles y muebles asociados a inmuebles",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Vinculación social",
+      "Eje estratégico ENC": "Atención a comunidades"
+    },
+    {
+      "Actividad POA": "Elaborar informes y documentos en materia de conservación de bienes muebles y muebles asociados a inmuebles relacionados con siniestros",
+      "Unidad de Medida": "Documento elaborado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Proyectos",
+      "Eje estratégico ENC": "Conservación"
+    },
+    {
+      "Actividad POA": "Elaborar informes y documentos en materia de conservación de bienes muebles y muebles asociados a inmuebles relacionados con sismos",
+      "Unidad de Medida": "Informe elaborado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Proyectos",
+      "Eje estratégico ENC": "Conservación"
+    },
+    {
+      "Actividad POA": "Elaborar proyectos de investigación del patrimonio histórico, arqueológico, subacuático, paleontológico (comprende estudios de gabinete y/o campo)",
+      "Unidad de Medida": "Proyecto elaborado",
+      "Programa Operativo": "Programa de investigación en materia conservación",
+      "Eje": "Investigación",
+      "Línea de acción ENC": "Proyectos",
+      "Eje estratégico ENC": "Investigación"
+    },
+    {
+      "Actividad POA": "Elaborar proyectos integrales de conservación del patrimonio cultural mueble y mueble asociado a inmueble, arqueológico y/o paleontológico, que fomenten el trabajo inclusivo y colaborativo con las comunidades",
+      "Unidad de Medida": "Proyecto elaborado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles de carácter arqueológico y/o paleontológico",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Proyectos incluyentes",
+      "Eje estratégico ENC": "Atención a comunidades"
+    },
+    {
+      "Actividad POA": "Elaborar proyectos integrales de conservación del patrimonio cultural mueble y mueble asociado a inmueble, histórico, que fomenten el trabajo inclusivo y colaborativo con las comunidades",
+      "Unidad de Medida": "Proyecto elaborado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles de carácter histórico",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Proyectos incluyentes",
+      "Eje estratégico ENC": "Atención a comunidades"
+    },
+    {
+      "Actividad POA": "Emisión de dictámenes del estado de conservación de bienes arqueológicos/paleontológicos, muebles e inmuebles",
+      "Unidad de Medida": "Dictamen elaborado",
+      "Programa Operativo": "Programa de protección legal del patrimonio arqueológico/paleontológico",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Dictámenes",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Emisión de dictámenes del estado de conservación de bienes históricos, muebles e inmuebles",
+      "Unidad de Medida": "Dictamen elaborado",
+      "Programa Operativo": "Programa de protección legal del patrimonio histórico",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Dictámenes",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Emisión de dictámenes respecto a denuncias, avisos y notificaciones de robo, saqueo, destrucción o cualquier otro ilícito que se cometa en contra del patrimonio cultural",
+      "Unidad de Medida": "Dictamen elaborado",
+      "Programa Operativo": "Programa de protección técnica del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Dictámenes",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Impartir cursos, talleres o pláticas a comunidades en conservación del patrimonio cultural",
+      "Unidad de Medida": "Curso impartido",
+      "Programa Operativo": "Programa de vinculación social para el reconocimiento de la diversidad cultural y de los derechos culturales",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Conservación preventiva y capacitación",
+      "Eje estratégico ENC": "Atención a comunidades"
+    },
+    {
+      "Actividad POA": "Impartir cursos, talleres o platicas de actualizacion para los restauradores y profesionistas vinculados con la conservacion del patrimonio",
+      "Unidad de Medida": "Capacitación otorgada",
+      "Programa Operativo": "Programa de capacitación y actualización en materia de conservación de bienes muebles y muebles asociados a inmuebles",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Capacitación",
+      "Eje estratégico ENC": "Educación"
+    },
+    {
+      "Actividad POA": "Impartir cursos, talleres o pláticas relacionados con la disciplina de conservación, ya sean de carácter formativo o informativo",
+      "Unidad de Medida": "Curso impartido",
+      "Programa Operativo": "Programa de capacitación y actualización en materia de conservación de bienes muebles y muebles asociados a inmuebles",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Actividades académicas",
+      "Eje estratégico ENC": "Educación"
+    },
+    {
+      "Actividad POA": "Inscripción de acciones de protección técnica e intervención sobre bienes muebles y bienes muebles asociados a inmuebles en el Sistema de Información de Intervenciones de Conservación de Bienes Culturales Muebles e Inmuebles por Destino (SIINCO).",
+      "Unidad de Medida": "Bien mueble registrado",
+      "Programa Operativo": "Programa de protección legal del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Documentación",
+      "Eje estratégico ENC": "Conservación"
+    },
+    {
+      "Actividad POA": "Inspeccionar proyectos de conservación de bienes muebles y bienes muebles asociados a inmuebles",
+      "Unidad de Medida": "Inspección realizada",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Visitas de verificación e inspección",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Inventariar bienes muebles bajo custodia del INAH",
+      "Unidad de Medida": "Bien mueble inventariado",
+      "Programa Operativo": "Programa de manejo de inventarios de bienes culturales y colecciones en resguardo del INAH",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Registro, inventario y catalogación",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Llevar a cabo supervisiones, peritajes y asesorías técnicas vinculadas con la protección del patrimonio cultural",
+      "Unidad de Medida": "Peritaje elaborado",
+      "Programa Operativo": "Programa de protección legal del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Visitas de verificación e inspección",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Organización de eventos académicos como conferencias, cátedras, mesas redondas, coloquios, simposios, congresos, entre otros",
+      "Unidad de Medida": "Encuentro Académico Realizado",
+      "Programa Operativo": "Programa de desarrollo y participación en encuentros académicos",
+      "Eje": "Investigación",
+      "Línea de acción ENC": "Actividades académicas",
+      "Eje estratégico ENC": "Educación"
+    },
+    {
+      "Actividad POA": "Otorgar asesorías técnicas y legales relacionadas con la salvaguarda, protección y/o conservación del patrimonio cultural (histórico, arqueológico/subacuático/paleontológico",
+      "Unidad de Medida": "Asesoría otorgada",
+      "Programa Operativo": "Programa de protección técnica del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Asesorías técnico-legales",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Otorgar asesorías técnico-legales en materia de conservación de bienes culturales muebles y muebles asociados a inmuebles",
+      "Unidad de Medida": "Asesoría otorgada",
+      "Programa Operativo": "Programa de protección técnica del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Asesorías técnico-legales",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Otorgar visitas guiadas para fomentar el aprecio al patrimonio cultural y fortalecer el conocimiento cultural",
+      "Unidad de Medida": "Visita guiada otorgada",
+      "Programa Operativo": "Programa de promoción, gestión y difusión cultural",
+      "Eje": "Difusión y Divulgación",
+      "Línea de acción ENC": "Divulgación",
+      "Eje estratégico ENC": "Comunicación"
+    },
+    {
+      "Actividad POA": "Participar en eventos académicos como conferencias, cátedras, mesas redondas, coloquios, simposios, congresos, entre otros",
+      "Unidad de Medida": "Participación en encuentro académico",
+      "Programa Operativo": "Programa de promoción, gestión y difusión cultural",
+      "Eje": "Difusión y Divulgación",
+      "Línea de acción ENC": "Actividades académicas",
+      "Eje estratégico ENC": "Educación"
+    },
+    {
+      "Actividad POA": "Publicación de productos (artículo, capítulo de libro, reseñas) relacionados con los resultados de investigaciones",
+      "Unidad de Medida": "Documento publicado",
+      "Programa Operativo": "Programa de promoción, gestión y difusión cultural",
+      "Eje": "Difusión y Divulgación",
+      "Línea de acción ENC": "Difusión",
+      "Eje estratégico ENC": "Comunicación"
+    },
+    {
+      "Actividad POA": "Realización de productos (artículos, capítulos de libro, etc.) relacionados con los resultados de investigaciones en materia de conservación del patrimonio arqueológico y/o paleontológico",
+      "Unidad de Medida": "Artículo elaborado",
+      "Programa Operativo": "Programa de investigación en materia de conservación del patrimonio arqueológico y/o paleontológico",
+      "Eje": "Investigación",
+      "Línea de acción ENC": "Difusión",
+      "Eje estratégico ENC": "Comunicación"
+    },
+    {
+      "Actividad POA": "Realizar acciones de prospección, vinculación social y acercamiento a las comunidades",
+      "Unidad de Medida": "Acciones de inclusión",
+      "Programa Operativo": "Programa de atención integral a comunidades en materia de conservación de bienes culturales muebles y muebles asociados a inmuebles",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Vinculación social",
+      "Eje estratégico ENC": "Atención a comunidades"
+    },
+    {
+      "Actividad POA": "Realizar acciones de vinculación intrainstitucional e interinstitucional para la investigación, protección, conservación y/o puesta en valor del patrimonio cultural",
+      "Unidad de Medida": "Gestión administrativa realizada",
+      "Programa Operativo": "Programa de investigación en materia conservación",
+      "Eje": "Investigación",
+      "Línea de acción ENC": "Intrainstitucional\nInterinstitucional",
+      "Eje estratégico ENC": "Vinculación"
+    },
+    {
+      "Actividad POA": "Realizar actividades culturales y educativas",
+      "Unidad de Medida": "Actividad cultural y educativa realizada",
+      "Programa Operativo": "Programa de promoción, gestión y difusión cultural",
+      "Eje": "Difusión y Divulgación",
+      "Línea de acción ENC": "Difusión y divulgación",
+      "Eje estratégico ENC": "Comunicación"
+    },
+    {
+      "Actividad POA": "Realizar dictámenes técnicos sobre el estado de conservación de acervos",
+      "Unidad de Medida": "Acervo verificado",
+      "Programa Operativo": "Programa de conservación de bienes culturales muebles y muebles asociados a inmuebles",
+      "Eje": "Conservación y Restauración",
+      "Línea de acción ENC": "Dictámenes",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Realizar el seguimiento técnico para atender siniestros del patrimonio arqueológico/paleontológico e histórico e infraestructura operativa asociada, ya sea por factores antropogénicos y/o naturales",
+      "Unidad de Medida": "Siniestro gestionado",
+      "Programa Operativo": "Programa de protección legal del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Gestión de riesgos",
+      "Eje estratégico ENC": "Conservación"
+    },
+    {
+      "Actividad POA": "Realizar peritajes del patrimonio histórico/arqueológico/subacuático/paleontológico a solicitud expresa de autoridades judiciales",
+      "Unidad de Medida": "Peritaje elaborado",
+      "Programa Operativo": "Programa de protección legal del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": 0,
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Realizar visita de inspección en materia de conservación al patrimonio cultural",
+      "Unidad de Medida": "Visita realizada",
+      "Programa Operativo": "Programa de protección legal del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Visitas de verificación e inspección",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Realizar y presentar ponencias dentro del INAH o en instituciones externas",
+      "Unidad de Medida": "Ponencia presentada",
+      "Programa Operativo": "Programa de desarrollo y participación en encuentros académicos",
+      "Eje": "Investigación",
+      "Línea de acción ENC": "Difusión  ",
+      "Eje estratégico ENC": "Comunicación"
+    },
+    {
+      "Actividad POA": "Registrar bienes muebles y muebles asociados a inmuebles",
+      "Unidad de Medida": "Bien mueble registrado",
+      "Programa Operativo": "Programa de catálogo y registro de bienes muebles e inmuebles arqueológicos/paleontológicos",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Registro, inventario y catalogación",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Solicitud de asesoría atendida de conservación a bienes patrimonio cultural de la nación",
+      "Unidad de Medida": "Asesoría otorgada",
+      "Programa Operativo": "Programa de protección técnica del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Asesorías técnico-legales",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Solicitud de custodia para los traslados de bienes culturales muebles",
+      "Unidad de Medida": "Solicitud atendida",
+      "Programa Operativo": "Programa de protección legal del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Atención a trámites",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Solicitudes atendidas de conservación a bienes patrimonio cultural de la nación",
+      "Unidad de Medida": "Asesoría otorgada",
+      "Programa Operativo": "Programa de protección técnica del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Asesorías técnico-legales",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Supervisión de obras de restauración y conservación de bienes culturales que efectúen las autoridades estatales y municipales de la entidad, así como otros organismos públicos y privados",
+      "Unidad de Medida": "Supervisión de obra",
+      "Programa Operativo": "Programa de protección técnica del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Visitas de verificación e inspección",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Suspensión o regularización de obras irregulares por terceros, en materia de conservación de bienes muebles y asociados a inmuebles, competencia del INAH",
+      "Unidad de Medida": "Obra suspendida",
+      "Programa Operativo": "Programa de protección legal del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Aplicación de la norma",
+      "Eje estratégico ENC": "Normatividad"
+    },
+    {
+      "Actividad POA": "Trámite atendido en materia de conservación de bienes muebles y muebles asociados a inmuebles",
+      "Unidad de Medida": "Trámite INAH atendido",
+      "Programa Operativo": "Programa de protección legal del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": "Atención a trámites",
+      "Eje estratégico ENC": "Protección técnica y legal"
+    },
+    {
+      "Actividad POA": "Traslado de bienes culturales muebles bajo resguardo del INAH y de particulares por préstamo para su exhibición y/o restauración",
+      "Unidad de Medida": "Traslado de bienes culturales realizado",
+      "Programa Operativo": "Programa de protección legal del patrimonio cultural",
+      "Eje": "Protección Técnica y Legal",
+      "Línea de acción ENC": 0,
+      "Eje estratégico ENC": "Protección técnica y legal"
+    }
+  ],
+  "activity_sheet_headers": [
+    "Actividad que realizo",
+    "Actividad POA                                 Seleccione una",
+    "Unidad de Medida",
+    "Programa Operativo",
+    "Eje",
+    "Línea de acción ENC",
+    "Eje estratégico ENC",
+    null,
+    "Planeado anual",
+    "1er Trimestre",
+    "2do Trimestre",
+    "3er Trimestre",
+    "4to Trimestre",
+    "1er Trimestre",
+    "2do Trimestre",
+    "3er Trimestre",
+    "4to Trimestre",
+    "Total",
+    "Planeacion \n(si o No)",
+    null,
+    "Resumen de intervención (max 300 palabras)",
+    "Fechas de ejecución de la actividad",
+    "Personal que participa",
+    "Restaurador responsable",
+    "Cargo / Puesto",
+    "Foto 1"
+  ],
+  "activity_sample": [
+    {
+      "Actividad que realizo": "Reunión con Secretaría Técnica para generar proyectos SIP en Yucatán y generar proyecto para con actividades y presupuesto para el proyecto SIP de la Sección de Conservación.",
+      "Actividad POA                                 Seleccione una": "Elaborar proyectos de investigación del patrimonio histórico, arqueológico, subacuático, paleontológico (comprende estudios de gabinete y/o campo)",
+      "Unidad de Medida": "Proyecto elaborado",
+      "Programa Operativo": "Programa de investigación en materia conservación",
+      "Eje": "Investigación",
+      "Línea de acción ENC": "Proyectos",
+      "Eje estratégico ENC": "Investigación",
+      "null": "Planeación de las actividades de conservación y restauración de los BMAI de las Z.A. de la Ruta Puuc, Kabah, Uxmal, Chacmultún, Xlapak y Dzulá.",
+      "Planeado anual": 1,
+      "1er Trimestre": 1,
+      "2do Trimestre": null,
+      "3er Trimestre": null,
+      "4to Trimestre": null,
+      "Total": 1,
+      "Planeacion \n(si o No)": "sí",
+      "Resumen de intervención (max 300 palabras)": "Planeación para realizar trabajo de campo en octubre del 2026 para actividades de conservación emergente y preventiva en Kabah, Chacmultún y Dzulá, y actividades de regitro en Uxmal y Xlapak.",
+      "Fechas de ejecución de la actividad": "2026-01-05T00:00:00",
+      "Personal que participa": "Restauradoras INAH Yucatán",
+      "Restaurador responsable": "Natalia Hernández Tangarife",
+      "Cargo / Puesto": "Restaurador Perito",
+      "Foto 1": "#VALUE!"
+    }
+  ]
+}

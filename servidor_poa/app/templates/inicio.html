@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block titulo %}Inicio{% endblock %}
+{% block encabezado %}Hola, {{ u.nombre.split(' ')[0] }}{% endblock %}
+{% block subtitulo %}¿Qué quieres hacer?{% endblock %}
+
+{% block contenido %}
+{# Una decisión por pantalla. Cada opción dice en palabras llanas qué pasa al elegirla,
+   para que nadie tenga que adivinar ni entender una tabla antes de empezar. #}
+<div class="menu-inicio">
+
+  <a class="opcion-grande principal" href="/registrar">
+    <span class="op-icono" aria-hidden="true">＋</span>
+    <span class="op-texto">
+      <b>Registrar una actividad</b>
+      <span>Cuenta lo que hiciste y súbele fotos. Te voy guiando paso a paso.</span>
+    </span>
+    <span class="op-flecha" aria-hidden="true">→</span>
+  </a>
+
+  <a class="opcion-grande" href="/tablero?ver=mias">
+    <span class="op-icono" aria-hidden="true">📋</span>
+    <span class="op-texto">
+      <b>Ver mis actividades</b>
+      <span>
+        {% if mias %}Tienes {{ mias }} actividad{{ 'es' if mias != 1 }} registrada{{ 's' if mias != 1 }} en {{ anio }}.
+        {% else %}Todavía no registras ninguna en {{ anio }}.{% endif %}
+        Aquí puedes revisarlas, corregirlas o agregarles fotos.
+      </span>
+    </span>
+    <span class="op-flecha" aria-hidden="true">→</span>
+  </a>
+
+  {% if u.es_admin or u.es_responsable %}
+  <a class="opcion-grande" href="/tablero?ver=todas">
+    <span class="op-icono" aria-hidden="true">👥</span>
+    <span class="op-texto">
+      <b>Ver las de toda la Sección</b>
+      <span>Las {{ total }} actividades de {{ anio }}. Si alguien ya registró algo en lo
+        que participaste, ahí puedes sumarte en vez de repetirlo.</span>
+    </span>
+    <span class="op-flecha" aria-hidden="true">→</span>
+  </a>
+
+  <a class="opcion-grande" href="/consolidado">
+    <span class="op-icono" aria-hidden="true">📊</span>
+    <span class="op-texto">
+      <b>Consolidado e informes</b>
+      <span>El concentrado de la Sección, para revisarlo y descargarlo en PDF o Excel.</span>
+    </span>
+    <span class="op-flecha" aria-hidden="true">→</span>
+  </a>
+  {% endif %}
+
+  {% if u.es_admin %}
+  <a class="opcion-grande" href="/admin/usuarios">
+    <span class="op-icono" aria-hidden="true">👤</span>
+    <span class="op-texto">
+      <b>Personal</b>
+      <span>Quién puede entrar a la plataforma y quién es de coordinación.</span>
+    </span>
+    <span class="op-flecha" aria-hidden="true">→</span>
+  </a>
+  {% endif %}
+
+</div>
+
+<p class="nota-inicio">
+  ¿Te perdiste? Desde cualquier pantalla puedes volver aquí con el botón
+  <b>← Inicio</b> de arriba. Nada se borra por salir de una pantalla.
+</p>
+{% endblock %}

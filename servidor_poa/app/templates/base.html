@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Plataforma POA{% endblock %} · Conservación · INAH Yucatán</title>
+  {# El ?v= obliga al navegador a soltar su copia vieja cuando el tema cambia.
+     Sin esto, tras un rediseño cada quien sigue viendo el CSS que tenía en caché. #}
+  <link rel="stylesheet" href="/static/tema.css?v=7">
+  <script>
+    // Antes de pintar, para que no haya destello blanco al cargar en modo oscuro.
+    (() => {
+      const pref = localStorage.getItem('poa_tema') || 'auto';
+      const oscuro = pref === 'dark' ||
+        (pref === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.dataset.theme = oscuro ? 'dark' : 'light';
+    })();
+  </script>
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true"></div>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+  <div class="app">
+    <aside>
+      <div class="brand-lockup">
+        <div class="brand-glyph">POA</div>
+        <div class="brand-text">
+          <b>Plataforma POA</b>
+          <span>Conservación · INAH Yucatán</span>
+        </div>
+      </div>
+
+      <div class="identity-card">
+        <div class="logo-slot"><img src="/static/logo-cultura.png" alt="Secretaría de Cultura"></div>
+        <div class="logo-slot"><img src="/static/logo-inah.png" alt="INAH"></div>
+        <span class="glass-pill">Sección de Conservación y Restauración</span>
+      </div>
+
+      {% if u %}
+      {% set ruta = request.url.path %}
+      <nav aria-label="Secciones">
+        <span class="nav-label">Navegación</span>
+        <a class="tab-btn {% if ruta == '/tablero' or ruta.startswith('/actividades') %}active{% endif %}" href="/tablero">Actividades</a>
+        {% if u.es_admin or u.es_responsable %}
+        <a class="tab-btn {% if ruta == '/consolidado' %}active{% endif %}" href="/consolidado">Consolidado</a>
+        {% endif %}
+        {% if u.es_admin %}
+        <a class="tab-btn {% if ruta.startswith('/admin') or ruta == '/mi-pin' %}active{% endif %}" href="/admin/usuarios">Personal</a>
+        {% endif %}
+      </nav>
+
+      <div class="aside-foot">
+        Entraste como <b>{{ u.nombre }}</b><br>
+        <span class="muted">{{ u.cargo }}</span>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <a class="btn sm {% if ruta == '/mi-pin' %}active{% endif %}" href="/mi-pin">Cambiar mi PIN</a>
+          <form method="post" action="/salir">
+            <button class="btn sm" type="submit">Cerrar sesión</button>
+          </form>
+        </div>
+      </div>
+      {% else %}
+      <div class="aside-foot">
+        Plataforma interna de la Sección de Conservación y Restauración,
+        Centro INAH Yucatán.
+      </div>
+      {% endif %}
+    </aside>
+
+    <main>
+      {# Volver al inicio desde donde sea, sin tener que entender el menú lateral.
+         En la propia pantalla de inicio no se muestra: no lleva a ninguna parte. #}
+      {% if u and request.url.path != '/inicio' %}
+      <a class="volver-inicio" href="/inicio">← Inicio</a>
+      {% endif %}
+
+      <div class="topbar">
+        <div>
+          <h1>{% block encabezado %}Plataforma POA{% endblock %}</h1>
+          <div class="sub">{% block subtitulo %}{% endblock %}</div>
+        </div>
+        <div class="spacer"></div>
+        <div class="toolbar">
+          <div class="seg" id="segTema" role="group" aria-label="Tema">
+            <button type="button" data-tema="light" aria-pressed="false">Claro</button>
+            <button type="button" data-tema="auto" aria-pressed="false">Auto</button>
+            <button type="button" data-tema="dark" aria-pressed="false">Oscuro</button>
+          </div>
+          {% block acciones %}{% endblock %}
+        </div>
+      </div>
+
+      <div class="tab-page" id="contenido">
+        {% block contenido %}{% endblock %}
+      </div>
+    </main>
+  </div>
+
+  <div class="toasts" id="toasts" role="status" aria-live="polite">
+    {% if aviso %}<div class="toast ok"><div>{{ aviso }}</div></div>{% endif %}
+  </div>
+
+  <script src="/static/app.js?v=4"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

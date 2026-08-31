@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block titulo %}Cambiar mi PIN{% endblock %}
+{% block encabezado %}Cambiar mi PIN{% endblock %}
+{% block subtitulo %}Es la llave con la que entras a la plataforma.{% endblock %}
+
+{% block contenido %}
+<section class="card" style="max-width:440px">
+  {% if error %}<div class="toast warn" style="margin-bottom:14px"><div>{{ error }}</div></div>{% endif %}
+
+  <form method="post" action="/mi-pin" class="stack">
+    <label class="fld">
+      <span class="req">PIN actual</span>
+      <input name="actual" type="password" inputmode="numeric" autocomplete="off"
+             required autofocus>
+    </label>
+    <label class="fld">
+      <span class="req">PIN nuevo</span>
+      <input name="nuevo" type="password" inputmode="numeric" autocomplete="off"
+             required minlength="4">
+      <span class="char-count">Al menos 4 caracteres.</span>
+    </label>
+    <label class="fld">
+      <span class="req">Repite el PIN nuevo</span>
+      <input name="repetir" type="password" inputmode="numeric" autocomplete="off"
+             required minlength="4">
+    </label>
+    <div class="actions">
+      <button class="btn primary" type="submit">Guardar</button>
+      <a class="btn" href="/tablero">Cancelar</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

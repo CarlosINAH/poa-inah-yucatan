@@ -1,0 +1,12 @@
+services:
+  poa:
+    build: .
+    image: poa-inah:latest
+    container_name: poa-inah
+    ports:
+      - "8000:8000"            # http://IP-DEL-NAS:8000
+    volumes:
+      - ./datos:/app/servidor_poa/datos   # BD (poa.db) y fotos persistentes
+    environment:
+      - TZ=America/Merida
+    restart: unless-stopped

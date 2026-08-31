@@ -1,0 +1,9 @@
+argon2-cffi==25.1.0
+fastapi==0.139.0
+itsdangerous==2.2.0
+Jinja2==3.1.6
+pillow==12.3.0
+python-multipart==0.0.32
+reportlab==5.0.0
+openpyxl==3.1.5
+uvicorn[standard]==0.51.0

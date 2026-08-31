@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block titulo %}{{ 'Editar actividad' if editando else 'Registrar actividad' }}{% endblock %}
+{% block encabezado %}{{ 'Editar actividad' if editando else 'Registrar actividad' }}{% endblock %}
+{% block subtitulo %}
+  {% if editando %}Cambia la ficha POA de esta actividad.
+  {% else %}Describe lo que hiciste y alinéalo con el catálogo POA.{% endif %}
+{% endblock %}
+
+{% block contenido %}
+{% if error %}<div class="toast warn" style="margin-bottom:16px"><div>{{ error }}</div></div>{% endif %}
+
+{% if not editando %}
+<div class="pasos" aria-label="Progreso">
+  <span class="paso">1 · Periodo</span>
+  <span class="paso actual">2 · Qué hiciste</span>
+  <span class="paso">3 · Fotos</span>
+</div>
+{% endif %}
+
+<form method="post" class="stack" id="formActividad"
+      data-editando="{{ 'si' if editando else 'no' }}"
+      action="{% if editando %}/actividades/{{ act.id }}/editar{% else %}/actividades{% endif %}">
+
+  {% if editando %}
+  {# Al editar sí se puede mover el periodo: la actividad ya existe. #}
+  <section class="card">
+    <div class="section-head">
+      <span class="section-num">1</span>
+      <div>
+        <h2>¿A qué periodo pertenece?</h2>
+        <p class="section-desc">Elige el trimestre que estás reportando. Todo lo
+          demás cuelga de aquí.</p>
+      </div>
+    </div>
+
+    <div class="fields-3">
+      <label class="fld">
+        <span class="req">Año</span>
+        <select name="anio" required>
+          {% for a in range(anio_defecto - 2, anio_defecto + 3) %}
+          <option value="{{ a }}" {% if act.anio == a %}selected{% endif %}>{{ a }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label class="fld span-2">
+        <span class="req">Trimestre</span>
+        <select name="trimestre" id="trimestre" required>
+          <option value="">Selecciona…</option>
+          {% for n, etiqueta in trimestres.items() %}
+          <option value="{{ n }}" {% if act.trimestre == n %}selected{% endif %}>
+            {{ etiqueta }}{{ ' · enero a marzo' if n == 1 }}{{ ' · abril a junio' if n == 2 }}{{ ' · julio a septiembre' if n == 3 }}{{ ' · octubre a diciembre' if n == 4 }}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+  </section>
+  {% else %}
+  {# Ya se eligió en el paso 1: se muestra para confirmar, no se vuelve a preguntar. #}
+  <div class="periodo-elegido">
+    <span>Estás reportando el <b>{{ trimestres[act.trimestre] }} de {{ act.anio }}</b></span>
+    <a class="btn sm" href="/registrar">Cambiar periodo</a>
+    <input type="hidden" name="anio" value="{{ act.anio }}">
+    <input type="hidden" name="trimestre" id="trimestre" value="{{ act.trimestre }}">
+  </div>
+  {% endif %}
+
+  <section class="card">
+    <div class="section-head">
+      <span class="section-num">{{ 2 if editando else 1 }}</span>
+      <div>
+        <h2>¿Qué hiciste?</h2>
+        <p class="section-desc">Con tus palabras. Si alguien más ya registró esta misma
+          actividad, te lo aviso para que te sumes en vez de duplicarla.</p>
+      </div>
+    </div>
+
+    <div class="fields-3">
+      <label class="fld span-all">
+        <span class="req">Actividad que realizo</span>
+        <input name="titulo" id="titulo" required minlength="5" autocomplete="off"
+               value="{{ act.titulo if act else '' }}"
+               placeholder="Ej. Intervención de remoción de graffitis (Gotas Doradas)">
+      </label>
+
+      <div id="avisoParecidas" class="span-all" hidden></div>
+
+      <label class="fld span-2">
+        <span>Zona / Sitio</span>
+        <input id="zonaSitio" name="zona" list="listaZonas" autocomplete="off"
+               value="{{ act.zona if act else '' }}" placeholder="Ej. Chichén Itzá">
+        <datalist id="listaZonas">
+          {% for z in zonas %}<option value="{{ z }}">{% endfor %}
+        </datalist>
+        <span id="sugerenciaZona" class="sug-zona" hidden></span>
+        <span class="char-count">Escribe la que sea; se agrega a la lista.
+          Si la actividad no ocurrió en un sitio (una ponencia, un curso), déjala vacía.</span>
+      </label>
+
+      <label class="fld">
+        <span>Fechas de ejecución</span>
+        <input name="fechas_ejecucion" value="{{ act.fechas_ejecucion if act else '' }}"
+               placeholder="Ej. 13 de abril de 2026">
+      </label>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="section-head">
+      <span class="section-num">{{ 3 if editando else 2 }}</span>
+      <div>
+        <h2>Alineación POA</h2>
+        <p class="section-desc">Al elegir la Actividad POA se completan solos los cinco
+          valores de abajo, igual que el VLOOKUP del Excel.</p>
+      </div>
+    </div>
+
+    <div class="fields-3">
+      <label class="fld span-all">
+        <span class="req">Actividad POA</span>
+        <select name="catalogo_id" id="catalogo" required>
+          <option value="">Seleccione una…</option>
+          {% for c in catalogo %}
+          <option value="{{ c.id }}" {% if act and act.catalogo_id == c.id %}selected{% endif %}>
+            {{ c.actividad_poa }}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label class="fld span-all">
+        <span>Programas Nacionales de Conservación</span>
+        <select name="programa_nacional">
+          {% for p in programas %}
+          <option value="{{ p }}"
+            {% if (act and act.programa_nacional == p) or (not act and p == 'Ninguno') %}selected{% endif %}>
+            {{ p }}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <div class="derived-head">Se completa solo</div>
+    <div class="derived-grid">
+      <div class="dfield"><label>Unidad de Medida</label><output id="d_unidad">—</output></div>
+      <div class="dfield"><label>Programa Operativo</label><output id="d_programa">—</output></div>
+      <div class="dfield"><label>Eje</label><output id="d_eje">—</output></div>
+      <div class="dfield"><label>Línea de acción ENC</label><output id="d_linea">—</output></div>
+      <div class="dfield"><label>Eje estratégico ENC</label><output id="d_ejeenc">—</output></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="section-head">
+      <span class="section-num">{{ 4 if editando else 3 }}</span>
+      <div>
+        <h2>Cifras del trimestre</h2>
+        <p class="section-desc">Esto cuenta la actividad, no a las personas: aunque
+          participen varios, aquí va <b>1</b>.</p>
+      </div>
+    </div>
+
+    <div class="fields-3">
+      <label class="fld">
+        <span>Planeado</span>
+        <input name="planeado" type="number" step="1" min="0"
+               value="{{ act.planeado | int if act else 1 }}">
+        <span class="char-count">Cuántas se tenían previstas en el trimestre.</span>
+      </label>
+      <label class="fld">
+        <span>Realizado</span>
+        <input name="realizado" type="number" step="1" min="0"
+               value="{{ act.realizado | int if act else 1 }}">
+        <span class="char-count">Cuántas se ejecutaron. Es lo que informa el POA.</span>
+      </label>
+      <label class="fld">
+        <span>¿Estaba en la planeación?</span>
+        <select name="planeacion">
+          <option value="Si" {% if not act or act.planeacion == 'Si' %}selected{% endif %}>Sí</option>
+          <option value="No" {% if act and act.planeacion == 'No' %}selected{% endif %}>No</option>
+        </select>
+      </label>
+    </div>
+
+    <label class="fld" style="margin-top:14px">
+      <span>Restaurador responsable</span>
+      <select name="responsable_id">
+        <option value="">Sin asignar</option>
+        {% for r in responsables %}
+        <option value="{{ r.id }}" {% if act and act.responsable_id == r.id %}selected{% endif %}>
+          {{ r.nombre }}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="fld" style="margin-top:14px">
+      <span>Observaciones (sobre planeación y ejecución)</span>
+      <textarea name="observaciones" rows="3"
+        placeholder="Ej. Actividad ejecutada conforme a lo planeado…">{{ act.observaciones if act else '' }}</textarea>
+    </label>
+  </section>
+
+  {% if not editando %}
+  <section class="card">
+    <div class="section-head">
+      <span class="section-num">{{ 5 if editando else 4 }}</span>
+      <div>
+        <h2>Tu resumen</h2>
+        <p class="section-desc">Lo que tú hiciste en esta actividad. Cada participante
+          escribe el suyo; las fotos se suben en el siguiente paso.</p>
+      </div>
+    </div>
+    <label class="fld">
+      <span>Resumen de intervención</span>
+      <textarea name="resumen" id="resumen" rows="5"
+        placeholder="Máximo 300 palabras.">{{ resumen or '' }}</textarea>
+      <span class="char-count" id="contadorPalabras">0 / 300 palabras</span>
+    </label>
+  </section>
+  {% endif %}
+
+  <div class="sticky-actions">
+    <div class="actions">
+      <button class="btn primary" type="submit">
+        {{ 'Guardar cambios' if editando else 'Registrar actividad' }}
+      </button>
+      <a class="btn" href="{% if editando %}/actividades/{{ act.id }}{% else %}/actividades{% endif %}">Cancelar</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

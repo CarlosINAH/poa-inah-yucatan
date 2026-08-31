@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block titulo %}{{ act.titulo }}{% endblock %}
+{% block encabezado %}{{ act.titulo }}{% endblock %}
+{% block subtitulo %}{{ act.zona or 'Sin zona' }} · {{ act.eje }} · {{ act.anio }}{% endblock %}
+
+{% block acciones %}
+<a class="btn sm" href="/pdf/actividad/{{ act.id }}" target="_blank">Ver PDF</a>
+{% if puede_editar %}<a class="btn sm" href="/actividades/{{ act.id }}/editar">Editar ficha</a>{% endif %}
+{% endblock %}
+
+{% block contenido %}
+<div class="grid-2">
+  <div class="stack">
+
+    {% if not mi_parte %}
+    <section class="card">
+      <div class="edit-banner">
+        <div>
+          <b>¿También participaste en esta actividad?</b>
+          <div class="section-desc">Súmate en vez de registrarla otra vez. La actividad
+            seguirá contando <b>1</b> para el POA y tú podrás escribir tu propio resumen
+            y subir tus fotos.</div>
+        </div>
+        <form method="post" action="/actividades/{{ act.id }}/sumarme">
+          <button class="btn primary" type="submit">Sumarme</button>
+        </form>
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="card">
+      <div class="section-head">
+        <span class="section-num">1</span>
+        <div>
+          <h2>Participantes ({{ partes | length }})</h2>
+          <p class="section-desc">Cada quien aporta su resumen y su evidencia.</p>
+        </div>
+      </div>
+
+      {% for p in partes %}
+      <div class="rep-card" style="margin-bottom:14px">
+        <div class="rc-top">
+          <strong>{{ p.nombre }}</strong>
+          <span class="tag">{{ p.cargo }}</span>
+        </div>
+
+        {% if p.usuario_id == u.id or u.es_admin %}
+        <form method="post" action="/participaciones/{{ p.id }}/resumen" style="margin-top:10px">
+          <label class="fld">
+            <span>Resumen de intervención</span>
+            <textarea name="resumen" rows="4" class="resumen-editable"
+              placeholder="Máximo 300 palabras.">{{ p.resumen }}</textarea>
+            <span class="char-count">0 / 300 palabras</span>
+          </label>
+          <div class="actions">
+            <button class="btn sm primary" type="submit">Guardar resumen</button>
+          </div>
+        </form>
+
+        <form method="post" action="/participaciones/{{ p.id }}/fotos"
+              enctype="multipart/form-data" class="form-fotos" style="margin-top:12px">
+          <label class="fld" for="fotos-{{ p.id }}"><span>Evidencia fotográfica ({{ p.fotos | length }} de {{ max_fotos }})</span></label>
+          {% if p.fotos | length < max_fotos %}
+          <div class="dropzone" data-zona>
+            <input type="file" id="fotos-{{ p.id }}" name="archivos" accept="image/*" multiple>
+            <div><b>Arrastra tus fotos aquí</b> o haz clic para elegirlas</div>
+            <p class="dz-hint">Hasta {{ max_fotos - (p.fotos | length) }} más ·
+              máximo 50 MB cada una · se reducen solas para que el PDF no pese de más</p>
+          </div>
+          <div class="actions"><button class="btn sm" type="submit">Subir fotos</button></div>
+          {% else %}
+          <p class="muted">Ya tienes las {{ max_fotos }} fotos. Elimina alguna para subir otra.</p>
+          {% endif %}
+        </form>
+        {% else %}
+        <div class="mini" style="margin-top:8px">
+          {{ p.resumen or 'Sin resumen capturado todavía.' }}
+        </div>
+        {% endif %}
+
+        {% if p.fotos %}
+        <div class="photo-grid" style="margin-top:12px">
+          {% for f in p.fotos %}
+          <div class="foto-item">
+            <div class="photo-thumb{% if f.destacada %} es-destacada{% endif %}">
+              <img src="/foto/{{ f.archivo }}" alt="{{ f.pie or f.nombre_original }}" loading="lazy">
+              {% if p.usuario_id == u.id or u.es_admin %}
+              <form method="post" action="/fotos/{{ f.id }}/destacar" style="display:inline">
+                <button type="submit" class="btn-destacar"
+                        title="{{ 'Quitar de portada' if f.destacada else 'Destacar: esta foto encabeza el PDF' }}"
+                        aria-label="Destacar foto">{{ '★' if f.destacada else '☆' }}</button>
+              </form>
+              <form method="post" action="/fotos/{{ f.id }}/eliminar" style="display:inline">
+                <button type="submit" aria-label="Quitar foto"
+                        onclick="return confirm('¿Eliminar esta foto?')">×</button>
+              </form>
+              {% elif f.destacada %}
+              <span class="foto-estrella" title="Foto destacada">★</span>
+              {% endif %}
+            </div>
+            {% if p.usuario_id == u.id or u.es_admin %}
+            <form method="post" action="/fotos/{{ f.id }}/pie" class="form-pie">
+              <input type="text" name="pie" value="{{ f.pie }}" maxlength="200"
+                     placeholder="Pie de foto (opcional)">
+              <button class="btn sm" type="submit" title="Guardar pie de foto">✓</button>
+            </form>
+            {% elif f.pie %}
+            <p class="pie-lectura">{{ f.pie }}</p>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        <p class="muted" style="font-size:11px;margin-top:6px">
+          {% for f in p.fotos %}{{ f.nombre_original }}
+            ({{ (f.bytes_original / 1048576) | round(1) }} MB →
+             {{ (f.bytes / 1048576) | round(1) }} MB){% if not loop.last %} · {% endif %}
+          {% endfor %}
+        </p>
+        {% endif %}
+      </div>
+      {% endfor %}
+
+      {% if puede_agregar and agregables %}
+      <div class="edit-banner" style="margin-top:8px">
+        <div>
+          <b>¿Trabajaron otras personas en esta actividad?</b>
+          <div class="section-desc">Agrégalas aquí. Cada una podrá entrar a escribir su
+            propio resumen y subir sus fotos. La actividad seguirá contando <b>1</b>
+            para el POA.</div>
+        </div>
+        <form method="post" action="/actividades/{{ act.id }}/participantes"
+              style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+          <label class="fld" style="margin:0;min-width:220px">
+            <span>Persona</span>
+            <select name="usuario_id" required>
+              <option value="">Elige a quién agregar…</option>
+              {% for r in agregables %}
+              <option value="{{ r.id }}">{{ r.nombre }} · {{ r.cargo }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <button class="btn primary" type="submit">Agregar</button>
+        </form>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+
+  <div class="stack">
+    <section class="card">
+      <div class="section-head">
+        <span class="section-num">2</span>
+        <div><h2>Ficha POA</h2></div>
+      </div>
+      <div class="derived-grid" style="grid-template-columns:1fr">
+        <div class="dfield filled"><label>Actividad POA</label><output>{{ act.actividad_poa }}</output></div>
+        <div class="dfield filled"><label>Unidad de Medida</label><output>{{ act.unidad_medida }}</output></div>
+        <div class="dfield filled"><label>Programa Operativo</label><output>{{ act.programa_operativo }}</output></div>
+        <div class="dfield filled"><label>Eje</label><output>{{ act.eje }}</output></div>
+        <div class="dfield filled"><label>Línea de acción ENC</label><output>{{ act.linea_accion_enc or '—' }}</output></div>
+        <div class="dfield filled"><label>Eje estratégico ENC</label><output>{{ act.eje_estrategico_enc }}</output></div>
+        <div class="dfield filled"><label>Programas Nacionales</label><output>{{ act.programa_nacional }}</output></div>
+        <div class="dfield filled"><label>Fechas de ejecución</label><output>{{ act.fechas_ejecucion or '—' }}</output></div>
+        <div class="dfield filled"><label>Restaurador responsable</label><output>{{ act.responsable_nombre or '—' }}</output></div>
+        <div class="dfield filled"><label>Cargo / Puesto</label><output>{{ act.responsable_cargo or '—' }}</output></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <span class="section-num">3</span>
+        <div><h2>Cifras</h2></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th></th><th>1er T</th><th>2do T</th><th>3er T</th><th>4to T</th><th>Total</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th>Planeado</th>
+              {% for i in range(1, 5) %}<td>{{ act['plan_t' ~ i] | int }}</td>{% endfor %}
+              <td><b>{{ act.total_planeado | int }}</b></td>
+            </tr>
+            <tr>
+              <th>Informado</th>
+              {% for i in range(1, 5) %}<td>{{ act['inf_t' ~ i] | int }}</td>{% endfor %}
+              <td><b>{{ act.total_informado | int }}</b></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted" style="font-size:12px;margin-top:10px">
+        Planeado anual: <b>{{ act.planeado_anual | int }}</b> ·
+        ¿En planeación?: <b>{{ act.planeacion }}</b>
+      </p>
+      {% if act.observaciones %}
+      <div class="dfield filled" style="margin-top:12px">
+        <label>Observaciones</label><output>{{ act.observaciones }}</output>
+      </div>
+      {% endif %}
+      <p class="muted" style="font-size:11px;margin-top:12px">
+        Registró: {{ act.creador_nombre }}
+      </p>
+    </section>
+
+    {% if u.es_admin %}
+    <section class="card">
+      <form method="post" action="/actividades/{{ act.id }}/eliminar"
+            onsubmit="return confirm('Se elimina la actividad, los resúmenes de todos los participantes y sus fotos. Esto no se deshace. ¿Continuar?')">
+        <button class="btn danger" type="submit">Eliminar actividad</button>
+        <p class="muted" style="font-size:11px;margin-top:8px">
+          Borra también lo que aportaron los demás participantes, por eso sólo lo
+          puede hacer la coordinación.
+        </p>
+      </form>
+    </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block titulo %}Tablero{% endblock %}
+{% block encabezado %}{{ 'Mis actividades' if ver == 'mias' else 'Actividades de la Sección' }}{% endblock %}
+{% block subtitulo %}POA {{ anio }}{% if trimestre %} · {{ trimestres[trimestre] }}{% endif %}{% endblock %}
+
+{% block acciones %}
+<a class="btn primary sm" href="/actividades/nueva">Registrar actividad</a>
+{% endblock %}
+
+{% block contenido %}
+<div class="kpis">
+  <div class="kpi">
+    <div class="k-val">{{ kpis.actividades }}</div>
+    <div class="k-lbl">Actividades del año</div>
+  </div>
+  <div class="kpi">
+    <div class="k-val">{{ kpis.informado | int }}</div>
+    <div class="k-lbl">Informado (suma POA)</div>
+  </div>
+  <div class="kpi">
+    <div class="k-val">{{ kpis.avance }}%</div>
+    <div class="k-lbl">Avance sobre lo planeado</div>
+  </div>
+  <div class="kpi">
+    <div class="k-val">{{ kpis.personas }}</div>
+    <div class="k-lbl">Personas que reportaron</div>
+  </div>
+</div>
+
+<section class="card" style="margin-top:18px">
+  {% set filtros = '&anio=' ~ anio ~ '&trimestre=' ~ trimestre ~ '&zona=' ~ (zona | urlencode) ~ '&q=' ~ (q | urlencode) %}
+  <form method="get" action="/tablero" class="row-controls">
+    {# Los <select> se envían con this.form.submit(), y esa llamada no incluye el
+       valor del botón de envío que se haya pulsado. Mientras «Mías/Todas» fueron
+       botones name="ver", cambiar de año o de zona borraba ese dato y el servidor
+       volvía a su default (ver="mias"): estando en «Todas» te devolvía a «Mías».
+       Ahora son enlaces con la vista puesta, y este campo la conserva al filtrar. #}
+    <input type="hidden" name="ver" value="{{ ver }}">
+    {% if puede_todas %}
+    <div class="seg" role="group" aria-label="Qué actividades ver">
+      <a href="/tablero?ver=mias{{ filtros }}" class="{{ 'on' if ver == 'mias' }}"
+         {% if ver == 'mias' %}aria-current="true"{% endif %}>Mías</a>
+      <a href="/tablero?ver=todas{{ filtros }}" class="{{ 'on' if ver == 'todas' }}"
+         {% if ver == 'todas' %}aria-current="true"{% endif %}>Todas</a>
+    </div>
+    {% endif %}
+    <label class="fld" style="flex:1;min-width:200px">
+      <span>Buscar</span>
+      <input name="q" value="{{ q }}" placeholder="Título o Actividad POA…">
+    </label>
+    <label class="fld">
+      <span>Año</span>
+      <select name="anio" onchange="this.form.submit()">
+        {% for a in anios %}<option value="{{ a }}" {% if a == anio %}selected{% endif %}>{{ a }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="fld">
+      <span>Trimestre</span>
+      <select name="trimestre" onchange="this.form.submit()">
+        <option value="0">Todos</option>
+        {% for n, etiqueta in trimestres.items() %}
+        <option value="{{ n }}" {% if n == trimestre %}selected{% endif %}>{{ etiqueta }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="fld">
+      <span>Zona</span>
+      <select name="zona" onchange="this.form.submit()">
+        <option value="">Todas</option>
+        {% for z in zonas %}<option value="{{ z }}" {% if z == zona %}selected{% endif %}>{{ z }}</option>{% endfor %}
+      </select>
+    </label>
+    <button class="btn" type="submit">Filtrar</button>
+  </form>
+
+  {% if filas %}
+  <div class="table-wrap">
+    <table class="lista">
+      <thead>
+        <tr>
+          <th>Trim.</th>
+          <th>Actividad</th>
+          <th>Zona / Sitio</th>
+          <th>Quién participa</th>
+          <th style="text-align:center">Fotos</th>
+          <th style="text-align:center">POA</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in filas %}
+        <tr onclick="location.href='/actividades/{{ a.id }}'" style="cursor:pointer">
+          <td><span class="tag">T{{ a.trimestre or '—' }}</span></td>
+          <td>
+            <a href="/actividades/{{ a.id }}"><b>{{ a.titulo }}</b></a>
+            <div class="mini">{{ a.actividad_poa }}</div>
+          </td>
+          <td>{{ a.zona or '—' }}</td>
+          <td>
+            {{ a.participantes | join(', ') }}
+            {% if a.participantes | length > 1 %}
+            <div class="mini">{{ a.participantes | length }} personas · cuenta 1</div>
+            {% endif %}
+          </td>
+          <td style="text-align:center">{{ a.n_fotos or '—' }}</td>
+          <td style="text-align:center"><b>{{ a.total_informado | int }}</b></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted" style="margin-top:12px">
+    {{ filas | length }} actividad{{ 'es' if filas | length != 1 else '' }}.
+    Cada una cuenta <b>una sola vez</b> para el POA, participen los que participen.
+  </p>
+
+  {% else %}
+  <div class="empty">
+    {% if ver == 'mias' %}
+      Todavía no participas en ninguna actividad{% if trimestre %} del {{ trimestres[trimestre] }}{% endif %} de {{ anio }}.
+      <div class="actions">
+        <a class="btn primary" href="/actividades/nueva">Registrar la primera</a>
+        {% if puede_todas %}<a class="btn" href="/tablero?ver=todas&anio={{ anio }}">Ver las de la Sección</a>{% endif %}
+      </div>
+    {% else %}
+      No hay actividades que coincidan con el filtro.
+      <div class="actions"><a class="btn" href="/tablero?ver=todas&anio={{ anio }}">Limpiar filtros</a></div>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

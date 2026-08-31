@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block titulo %}Tu PIN{% endblock %}
+{% block encabezado %}Escribe tu PIN{% endblock %}
+{% block subtitulo %}{{ persona.nombre }}{% endblock %}
+
+{% block contenido %}
+<section class="card" style="max-width:420px">
+  <div class="section-head">
+    <span class="section-num">2</span>
+    <div>
+      <h2>Confirma que eres tú</h2>
+      <p class="section-desc">Escribe el PIN que definiste para entrar.</p>
+    </div>
+  </div>
+
+  {% if error %}<div class="toast warn" style="margin-bottom:14px"><div>{{ error }}</div></div>{% endif %}
+
+  <form method="post" action="/pin" class="stack">
+    <label class="fld">
+      <span class="req">Tu PIN</span>
+      <input name="pin" type="password" inputmode="numeric" autocomplete="off"
+             required autofocus>
+    </label>
+    <div class="actions">
+      <button class="btn primary" type="submit">Entrar</button>
+      <a class="btn" href="/entrar">No soy yo</a>
+    </div>
+  </form>
+
+  <p class="muted" style="margin-top:16px;font-size:12px">
+    ¿Lo olvidaste? La coordinación puede borrarlo desde Personal para que definas
+    uno nuevo.
+  </p>
+</section>
+{% endblock %}

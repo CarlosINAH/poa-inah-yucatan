@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block titulo %}Define tu PIN{% endblock %}
+{% block encabezado %}Define tu PIN{% endblock %}
+{% block subtitulo %}{{ persona.nombre }}{% endblock %}
+
+{% block contenido %}
+<section class="card" style="max-width:440px">
+  <div class="toast warn" style="margin-bottom:14px">
+    <div>Todavía no tienes PIN. Defínelo <b>ahora</b>: es la llave con la que entrarás
+      cada vez. Mientras esté vacío, cualquiera que elija tu nombre en la lista podría
+      ponerle uno y entrar por ti.</div>
+  </div>
+
+  {% if error %}<div class="toast warn" style="margin-bottom:14px"><div>{{ error }}</div></div>{% endif %}
+
+  <form method="post" action="/definir-pin" class="stack">
+    <label class="fld">
+      <span class="req">Tu PIN nuevo</span>
+      <input name="nuevo" type="password" inputmode="numeric" autocomplete="off"
+             required minlength="4" autofocus>
+      <span class="char-count">Al menos 4 caracteres. Te lo pedirá cada vez que
+        entres.</span>
+    </label>
+    <label class="fld">
+      <span class="req">Repítelo</span>
+      <input name="repetir" type="password" inputmode="numeric" autocomplete="off"
+             required minlength="4">
+    </label>
+    <div class="actions">
+      <button class="btn primary" type="submit">Guardar PIN y entrar</button>
+      <a class="btn" href="/entrar">No soy yo</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

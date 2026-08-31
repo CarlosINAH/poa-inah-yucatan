@@ -1,0 +1,24 @@
+# ─── Datos reales del personal — NUNCA subir a GitHub ───────────────────────
+# La base de datos, las fotos y la llave de sesión viven en el servidor (volumen
+# persistente), no en el repositorio. Contienen datos del personal de la Sección.
+servidor_poa/datos/
+respaldos/
+datos_extraidos/summary.json
+
+# ─── Entorno de Python ──────────────────────────────────────────────────────
+.venv/
+**/.venv/
+**/__pycache__/
+**/*.pyc
+*.pyo
+
+# ─── Herramientas y temporales ──────────────────────────────────────────────
+.claude/
+graphify-out/
+scratchpad/
+*.log
+
+# ─── Sistema operativo ──────────────────────────────────────────────────────
+Thumbs.db
+desktop.ini
+.DS_Store

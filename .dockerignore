@@ -1,0 +1,14 @@
+# No metas a la imagen cosas pesadas o que no sirven en el contenedor.
+.venv/
+**/.venv/
+**/__pycache__/
+**/*.pyc
+prototipo_poa/
+scratchpad/
+graphify-out/
+node_modules/
+.git/
+.claude/
+*.md
+# La BD y las fotos viven en el volumen, no dentro de la imagen.
+servidor_poa/datos/

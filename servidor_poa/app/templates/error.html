@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block titulo %}Error {{ codigo }}{% endblock %}
+{% block encabezado %}Error {{ codigo }}{% endblock %}
+{% block subtitulo %}Algo no salió como esperabas.{% endblock %}
+
+{% block contenido %}
+<section class="card" style="max-width:520px">
+  <p style="margin-top:0">{{ detalle }}</p>
+  <div class="actions">
+    <a class="btn primary" href="/tablero">Volver al tablero</a>
+    <a class="btn" href="/actividades">Ver actividades</a>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block titulo %}Entrar{% endblock %}
+{% block encabezado %}¿Quién eres?{% endblock %}
+{% block subtitulo %}Elige tu nombre para entrar a tus actividades.{% endblock %}
+
+{% block contenido %}
+<section class="card" style="max-width:520px">
+  <div class="section-head">
+    <span class="section-num">1</span>
+    <div>
+      <h2>Identifícate</h2>
+      <p class="section-desc">Selecciona tu nombre de la lista y escribe tu PIN.</p>
+    </div>
+  </div>
+
+  <form method="post" action="/entrar" class="stack">
+    <label class="fld">
+      <span class="req">Tu nombre</span>
+      <select name="usuario_id" required autofocus>
+        <option value="">Selecciona…</option>
+        {% for grupo, gente in personas | groupby('grupo') %}
+        <optgroup label="{{ grupo }}">
+          {% for p in gente %}
+          <option value="{{ p.id }}">{{ p.nombre }} · {{ p.cargo }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="actions">
+      <button class="btn primary" type="submit">Entrar</button>
+    </div>
+  </form>
+
+  <p class="muted" style="margin-top:18px;font-size:12px">
+    Cada persona entra con su PIN. La primera vez que entres, lo defines tú.
+  </p>
+</section>
+{% endblock %}

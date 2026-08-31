@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block titulo %}Consolidado{% endblock %}
+{% block encabezado %}Consolidado de la Sección{% endblock %}
+{% block subtitulo %}
+  {{ trimestres[trimestre] if trimestre else 'Ejercicio completo' }} de {{ anio }} ·
+  agrupado por {{ 'zona' if agrupar == 'zona' else 'eje' }}.
+{% endblock %}
+
+{% block acciones %}
+{% if grupos %}
+<a class="btn primary sm" target="_blank"
+   href="/pdf/consolidado?anio={{ anio }}&trimestre={{ trimestre }}&agrupar={{ agrupar }}&fotos=1">
+  PDF con fotos
+</a>
+<a class="btn sm" target="_blank"
+   href="/pdf/consolidado?anio={{ anio }}&trimestre={{ trimestre }}&agrupar={{ agrupar }}&fotos=0">
+  PDF sin fotos
+</a>
+{% endif %}
+{% endblock %}
+
+{% block contenido %}
+<section class="card">
+  <form method="get" action="/consolidado" class="row-controls">
+    <label class="fld">
+      <span>Año</span>
+      <select name="anio" onchange="this.form.submit()">
+        {% for a in anios %}<option value="{{ a }}" {% if a == anio %}selected{% endif %}>{{ a }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="fld">
+      <span>Periodo</span>
+      <select name="trimestre" onchange="this.form.submit()">
+        <option value="0" {% if not trimestre %}selected{% endif %}>Ejercicio completo</option>
+        {% for n, etiqueta in trimestres.items() %}
+        <option value="{{ n }}" {% if n == trimestre %}selected{% endif %}>{{ etiqueta }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="fld">
+      <span>Agrupar por</span>
+      <select name="agrupar" onchange="this.form.submit()">
+        <option value="zona" {% if agrupar == 'zona' %}selected{% endif %}>Zona / Sitio</option>
+        <option value="eje" {% if agrupar == 'eje' %}selected{% endif %}>Eje</option>
+      </select>
+    </label>
+  </form>
+
+  {% if grupos %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ 'Zona / Sitio' if agrupar == 'zona' else 'Eje' }}</th>
+          <th>Actividades</th><th>Informado</th><th>Personas</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in grupos %}
+        <tr>
+          <th>{{ g.nombre }}</th>
+          <td>{{ g.actividades | length }}</td>
+          <td>{{ g.informado | int }}</td>
+          <td>{{ g.personas }}</td>
+        </tr>
+        {% endfor %}
+        <tr>
+          <th>Total de la Sección</th>
+          <td><b>{{ totales.actividades }}</b></td>
+          <td><b>{{ totales.informado | int }}</b></td>
+          <td><b>{{ totales.personas }}</b></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="muted" style="margin-top:10px;font-size:12px">
+    {{ totales.fotos }} foto{{ 's' if totales.fotos != 1 else '' }} de evidencia.
+    Cada actividad cuenta una sola vez, participen los que participen.
+  </p>
+
+  {% for g in grupos %}
+  <div class="derived-head" style="margin-top:22px">{{ g.nombre }}</div>
+  <div class="list-grid">
+    {% for a in g.actividades %}
+    <a class="rep-card" href="/actividades/{{ a.id }}"
+       style="text-decoration:none;color:inherit;display:block">
+      <div class="rc-top">
+        <strong>{{ a.titulo }}</strong>
+        <span class="tag">{{ a.informado_periodo | int }}</span>
+      </div>
+      <div class="mini">
+        {{ a.actividad_poa }}<br>
+        <b>{{ a.participaciones | length }}</b> participante{{ 's' if a.participaciones | length != 1 else '' }}:
+        {{ a.participantes }}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  {% else %}
+  <div class="empty">
+    No hay actividades reportadas en
+    {{ trimestres[trimestre] if trimestre else 'el ejercicio' }} de {{ anio }}.
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
