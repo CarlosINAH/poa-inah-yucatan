@@ -52,7 +52,11 @@ CREATE TABLE IF NOT EXISTS zonas (
   id          INTEGER PRIMARY KEY,
   nombre      TEXT NOT NULL,
   nombre_norm TEXT NOT NULL UNIQUE,
-  usos        INTEGER NOT NULL DEFAULT 0
+  usos        INTEGER NOT NULL DEFAULT 0,
+  -- Coordenadas geocodificadas una sola vez (Nominatim) para dibujar el mapa del
+  -- informe. NULL mientras no se hayan resuelto o si el sitio no se pudo ubicar.
+  lat         REAL,
+  lon         REAL
 );
 
 CREATE TABLE IF NOT EXISTS actividades (
@@ -78,6 +82,7 @@ CREATE TABLE IF NOT EXISTS actividades (
   inf_t3             REAL NOT NULL DEFAULT 0,
   inf_t4             REAL NOT NULL DEFAULT 0,
   planeacion         TEXT NOT NULL DEFAULT 'Si',
+  objetivo           TEXT NOT NULL DEFAULT '',
   observaciones      TEXT NOT NULL DEFAULT '',
   fechas_ejecucion   TEXT NOT NULL DEFAULT '',
   responsable_id     INTEGER REFERENCES usuarios(id),
@@ -192,6 +197,16 @@ def _migrar(con: sqlite3.Connection) -> None:
     if "trimestre" not in act_cols:
         con.execute("ALTER TABLE actividades ADD COLUMN trimestre INTEGER NOT NULL DEFAULT 0")
         _asignar_trimestre(con)
+
+    # v3.5: objetivo de la actividad (encabeza cada hoja del informe nuevo).
+    if "objetivo" not in act_cols:
+        con.execute("ALTER TABLE actividades ADD COLUMN objetivo TEXT NOT NULL DEFAULT ''")
+
+    # v3.5: coordenadas de cada zona para el mapa del informe.
+    zona_cols = {f["name"] for f in con.execute("PRAGMA table_info(zonas)")}
+    if "lat" not in zona_cols:
+        con.execute("ALTER TABLE zonas ADD COLUMN lat REAL")
+        con.execute("ALTER TABLE zonas ADD COLUMN lon REAL")
 
 
 def _asignar_trimestre(con: sqlite3.Connection) -> None:

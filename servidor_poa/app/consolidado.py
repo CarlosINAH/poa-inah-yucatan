@@ -17,7 +17,7 @@ CAMPOS_ACTIVIDAD = (
     "planeado_anual",
     "plan_t1", "plan_t2", "plan_t3", "plan_t4",
     "inf_t1", "inf_t2", "inf_t3", "inf_t4",
-    "planeacion", "observaciones", "fechas_ejecucion", "responsable_id",
+    "planeacion", "objetivo", "observaciones", "fechas_ejecucion", "responsable_id",
 )
 
 

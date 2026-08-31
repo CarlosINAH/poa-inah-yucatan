@@ -86,6 +86,13 @@
 
       <div id="avisoParecidas" class="span-all" hidden></div>
 
+      <label class="fld span-all">
+        <span>Objetivo de la actividad</span>
+        <textarea name="objetivo" rows="2"
+          placeholder="¿Para qué se hizo? Ej. Conservar y estabilizar el bien para su resguardo.">{{ act.objetivo if act else '' }}</textarea>
+        <span class="char-count">Una o dos líneas: el propósito de la actividad. Encabeza la hoja del informe.</span>
+      </label>
+
       <label class="fld span-2">
         <span>Zona / Sitio</span>
         <input id="zonaSitio" name="zona" list="listaZonas" autocomplete="off"

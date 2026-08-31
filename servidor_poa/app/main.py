@@ -354,6 +354,7 @@ def _leer_form_actividad(datos: dict) -> dict:
         "planeado": num("planeado", 1.0),
         "realizado": num("realizado", 1.0),
         "planeacion": "Si" if (datos.get("planeacion") or "Si") == "Si" else "No",
+        "objetivo": (datos.get("objetivo") or "").strip(),
         "observaciones": (datos.get("observaciones") or "").strip(),
         "fechas_ejecucion": (datos.get("fechas_ejecucion") or "").strip(),
         "responsable_id": int(datos.get("responsable_id") or 0) or None,
@@ -735,6 +736,16 @@ def pdf_actividad(act_id: int, u: sqlite3.Row = Depends(exigir_sesion),
     act = consolidado.actividad(con, act_id)
     if act is None:
         raise HTTPException(404, "Esa actividad no existe.")
+    # Un empleado sólo genera el PDF de actividades en las que participa; la
+    # coordinación y los responsables pueden generar el de cualquiera (igual que
+    # el tablero, donde ellos ven toda la Sección y el resto sólo lo suyo).
+    if not (u["es_admin"] or u["es_responsable"]):
+        parte = con.execute(
+            "SELECT 1 FROM participaciones WHERE actividad_id = ? AND usuario_id = ?",
+            (act_id, u["id"]),
+        ).fetchone()
+        if not parte:
+            raise HTTPException(403, "Sólo puedes ver el PDF de tus propias actividades.")
     contenido = pdf.individual(con, act_id)
     return Response(contenido, media_type="application/pdf", headers={
         "Content-Disposition": f'inline; filename="POA_actividad_{act_id}.pdf"'})

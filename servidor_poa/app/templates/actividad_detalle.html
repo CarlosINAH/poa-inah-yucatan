@@ -153,6 +153,8 @@
         <div><h2>Ficha POA</h2></div>
       </div>
       <div class="derived-grid" style="grid-template-columns:1fr">
+        <div class="dfield filled"><label>Objetivo</label><output>{{ act.objetivo or '—' }}</output></div>
+        <div class="dfield filled"><label>Ubicación</label><output>{{ act.zona or '—' }}</output></div>
         <div class="dfield filled"><label>Actividad POA</label><output>{{ act.actividad_poa }}</output></div>
         <div class="dfield filled"><label>Unidad de Medida</label><output>{{ act.unidad_medida }}</output></div>
         <div class="dfield filled"><label>Programa Operativo</label><output>{{ act.programa_operativo }}</output></div>

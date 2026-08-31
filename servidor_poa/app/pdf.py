@@ -13,7 +13,7 @@ from datetime import date
 from pathlib import Path
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
@@ -22,6 +22,7 @@ from reportlab.platypus import (Image, KeepTogether, PageBreak, Paragraph,
 
 from .consolidado import armar, participaciones
 from .db import FOTOS_DIR, TRIMESTRES
+from .mapas import obtener_mapa
 
 # Los logos del membrete viven junto a la app (app/static), la misma carpeta que usa
 # la interfaz web. Antes se leían de prototipo_poa/assets, que el .dockerignore excluye
@@ -57,7 +58,21 @@ E = {
     "th": ParagraphStyle("th", parent=_ss["Normal"], fontSize=7.5, leading=9,
                          textColor=colors.white, fontName="Helvetica-Bold",
                          alignment=TA_CENTER),
+    # --- Hoja por actividad (v3.5) ---
+    "titulo_act": ParagraphStyle("titulo_act", parent=_ss["Title"], fontSize=16, leading=20,
+                                 textColor=TINTA, alignment=TA_LEFT, spaceAfter=1),
+    "meta_act": ParagraphStyle("meta_act", parent=_ss["Normal"], fontSize=9, leading=12,
+                               textColor=colors.HexColor("#5b6b7a"), spaceAfter=6),
+    "et_seccion": ParagraphStyle("et_seccion", parent=_ss["Normal"], fontSize=8.5, leading=11,
+                                 textColor=ACENTO, fontName="Helvetica-Bold",
+                                 spaceBefore=9, spaceAfter=3),
+    "cap_mapa": ParagraphStyle("cap_mapa", parent=_ss["Normal"], fontSize=9.5, leading=12,
+                               textColor=TINTA, alignment=TA_CENTER, fontName="Helvetica-Bold",
+                               spaceBefore=3, spaceAfter=2),
 }
+
+_MAPA_ANCHO = 140 * mm            # ancho del mapa en la hoja (centrado)
+_MAPA_ALTO = _MAPA_ANCHO * 360 / 640   # el servicio devuelve 640x360 fijo
 
 
 def _esc(texto) -> str:
@@ -244,48 +259,99 @@ def _firmas() -> list:
     return [Spacer(1, 10 * mm), t]
 
 
-def _ficha(act: dict, con_fotos: bool, compacta: bool = False) -> list:
-    """Los datos de una actividad: alineación POA, cifras, y lo que aportó cada quien."""
+def _etiqueta_seccion(texto: str) -> Paragraph:
+    return Paragraph(_esc(texto).upper(), E["et_seccion"])
+
+
+def _fotos_ordenadas(fotos: list) -> list:
+    return sorted(fotos, key=lambda f: (-f["destacada"], f["orden"], f["id"]))
+
+
+def _bloque_ubicacion(con, act: dict) -> list:
+    """Etiqueta «Ubicación» + mapa con el nombre del sitio, o respaldo en texto."""
+    zona = act.get("zona") or ""
+    ruta, nombre = obtener_mapa(con, zona) if zona else (None, "")
+    piezas: list = [_etiqueta_seccion("Ubicación")]
+    if ruta and ruta.exists():
+        try:
+            img = Image(str(ruta), width=_MAPA_ANCHO, height=_MAPA_ALTO)
+            img.hAlign = "CENTER"
+            piezas += [img, Paragraph(_esc(nombre), E["cap_mapa"])]
+            return piezas
+        except Exception:
+            pass  # imagen ilegible: cae al respaldo de texto
+    piezas.append(_campo("Sitio", nombre or "Sin ubicación registrada"))
+    return piezas
+
+
+def _cuadricula_fotos(pares: list) -> list:
+    """Hasta 4 fotos en cuadrícula 2×2. `pares`: lista de (foto, autor)."""
+    celdas = []
+    for foto, autor in pares:
+        ruta = FOTOS_DIR / (foto["archivo_pdf"] or foto["archivo"])
+        if not ruta.exists():
+            ruta = FOTOS_DIR / foto["archivo"]
+        if not ruta.exists():
+            continue
+        escala = min(82 * mm / max(foto["ancho"], 1), 58 * mm / max(foto["alto"], 1))
+        try:
+            img = Image(str(ruta), width=foto["ancho"] * escala, height=foto["alto"] * escala)
+        except Exception:
+            continue
+        pie = foto["pie"] or foto["nombre_original"]
+        leyenda = f"{pie} · {autor}" if pie else autor
+        celdas.append(Table([[img], [Paragraph(_esc(leyenda), E["pie_foto"])]],
+                            colWidths=[84 * mm]))
+    if not celdas:
+        return []
+    filas = [celdas[i:i + 2] for i in range(0, len(celdas), 2)]
+    for fila in filas:
+        if len(fila) == 1:
+            fila.append("")
+    t = Table(filas, colWidths=[87 * mm, 87 * mm])
+    t.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+    ]))
+    return [t]
+
+
+def _hoja_actividad(con, act: dict, con_fotos: bool = True) -> list:
+    """Una actividad = una hoja: título, ubicación (mapa), objetivo y resumen.
+
+    Las fotos van al final; si no caben en la hoja, cada grupo de 4 (cuadrícula 2×2)
+    salta a la hoja siguiente en bloque, sin partirse.
+    """
     piezas: list = [
-        Paragraph(_esc(act["titulo"]), E["seccion"]),
-        _campo("Actividad POA con la que se alinea", act["actividad_poa"]),
-        Spacer(1, 3),
-        _rejilla([
-            ("Unidad de Medida", act["unidad_medida"]),
-            ("Programa Operativo", act["programa_operativo"]),
-            ("Eje", act["eje"]),
-            ("Zona / Sitio", act["zona"]),
-            ("Línea de acción ENC", act["linea_accion_enc"]),
-            ("Eje estratégico ENC", act["eje_estrategico_enc"]),
-            ("Programas Nacionales de Conservación", act["programa_nacional"]),
-            ("Fechas de ejecución", act["fechas_ejecucion"]),
-            ("Restaurador responsable", act["responsable_nombre"] or ""),
-            ("Cargo / Puesto", act["responsable_cargo"] or ""),
-        ]),
-        Spacer(1, 5),
-        _tabla_cifras(act),
+        Paragraph(_esc(act["titulo"]), E["titulo_act"]),
+        Paragraph(_esc(f'{act.get("eje", "")}  ·  {_periodo(act["anio"], act.get("trimestre", 0))}'),
+                  E["meta_act"]),
     ]
-    if act["observaciones"]:
-        piezas += [Spacer(1, 5), _campo("Observaciones (planeación y ejecución)",
-                                        act["observaciones"])]
+    piezas += _bloque_ubicacion(con, act)
 
-    piezas.append(Spacer(1, 6))
-    piezas.append(Paragraph(
-        f"Personal que participa ({len(act['participaciones'])})", E["seccion"]))
+    piezas.append(_etiqueta_seccion("Objetivo"))
+    piezas.append(Paragraph(_esc(act.get("objetivo")) or "—", E["cuerpo"]))
 
-    for parte in act["participaciones"]:
-        # Nombre, resumen y fotos viajan juntos: si no caben, el bloque completo pasa a
-        # la hoja siguiente en vez de dejar las fotos huérfanas.
-        bloque = [
-            _banda_participante(parte),
-            Spacer(1, 3),
-            Paragraph(_esc(parte["resumen"]) or "<i>Sin resumen capturado.</i>", E["cuerpo"]),
-        ]
-        if con_fotos:
-            bloque += _tira_fotos(_fotos_de(parte, 2 if compacta else 4),
-                                  autor=parte["nombre"])
-        piezas.append(KeepTogether(bloque))
-        piezas.append(Spacer(1, 6))
+    piezas.append(_etiqueta_seccion("Resumen"))
+    partes = act.get("participaciones") or []
+    if partes:
+        for parte in partes:
+            piezas.append(_banda_participante(parte))
+            piezas.append(Spacer(1, 2))
+            piezas.append(Paragraph(_esc(parte["resumen"]) or "<i>Sin resumen capturado.</i>",
+                                    E["cuerpo"]))
+            piezas.append(Spacer(1, 4))
+    else:
+        piezas.append(Paragraph("<i>Sin resumen capturado.</i>", E["cuerpo"]))
+
+    if con_fotos:
+        todas = [(f, parte["nombre"]) for parte in partes
+                 for f in _fotos_ordenadas(parte["fotos"])]
+        for i in range(0, len(todas), 4):
+            grupo = _cuadricula_fotos(todas[i:i + 4])
+            if grupo:
+                piezas.append(KeepTogether([_etiqueta_seccion("Evidencia fotográfica"), *grupo]))
     return piezas
 
 
@@ -299,14 +365,8 @@ def individual(con: sqlite3.Connection, act_id: int) -> bytes:
 
     buffer = io.BytesIO()
     doc = _documento(buffer)
-    piezas = [
-        Paragraph("INFORME TRIMESTRAL · PROGRAMA OPERATIVO ANUAL", E["titulo"]),
-        Paragraph(f"Ficha de actividad · Ejercicio {act['anio']}", E["sub"]),
-        Spacer(1, 6),
-        *_ficha(act, con_fotos=True),
-        *_firmas(),
-    ]
-    doc.build(piezas, onFirstPage=_membrete, onLaterPages=_membrete)
+    doc.build(_hoja_actividad(con, act, con_fotos=True),
+              onFirstPage=_membrete, onLaterPages=_membrete)
     return buffer.getvalue()
 
 
@@ -353,7 +413,6 @@ def _portada(anio: int, trimestre: int, agrupar: str, tot: dict, grupos: list[di
         Spacer(1, 4),
         Paragraph(nota, E["pie_foto"]),
         *_firmas(),
-        PageBreak(),
     ]
 
 
@@ -362,30 +421,15 @@ def consolidado(con: sqlite3.Connection, grupos: list[dict], anio: int, trimestr
     from .consolidado import totales
     tot = totales(grupos)
 
+    # Una actividad por hoja: se aplanan los grupos conservando su orden (por zona/eje).
+    actividades = [a for g in grupos for a in g["actividades"]]
+
     buffer = io.BytesIO()
     doc = _documento(buffer)
     piezas: list = _portada(anio, trimestre, agrupar, tot, grupos)
-
-    for i, grupo in enumerate(grupos):
-        encabezado = Table(
-            [[Paragraph(_esc(grupo["nombre"].upper()), E["grupo"]),
-              Paragraph(f"<font color='white'>{len(grupo['actividades'])} actividad"
-                        f"{'es' if len(grupo['actividades']) != 1 else ''} · "
-                        f"{grupo['personas']} persona"
-                        f"{'s' if grupo['personas'] != 1 else ''}</font>", E["pie_foto"])]],
-            colWidths=[120 * mm, 54 * mm])
-        encabezado.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), ACENTO),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-            ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-        ]))
-        piezas += [encabezado, Spacer(1, 4)]
-        for act in grupo["actividades"]:
-            piezas += _ficha(act, con_fotos=con_fotos, compacta=True)
-            piezas.append(Spacer(1, 6))
-        if i < len(grupos) - 1:
-            piezas.append(PageBreak())
+    for act in actividades:
+        piezas.append(PageBreak())
+        piezas += _hoja_actividad(con, act, con_fotos=con_fotos)
 
     doc.build(piezas, onFirstPage=_membrete, onLaterPages=_membrete)
     return buffer.getvalue()
