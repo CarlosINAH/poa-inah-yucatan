@@ -12,6 +12,10 @@ datos_extraidos/summary.json
 **/*.pyc
 *.pyo
 
+# ─── Secretos ───────────────────────────────────────────────────────────────
+# El token del túnel de Cloudflare NUNCA se sube: da acceso a publicar la app.
+.env
+
 # ─── Herramientas y temporales ──────────────────────────────────────────────
 .claude/
 graphify-out/

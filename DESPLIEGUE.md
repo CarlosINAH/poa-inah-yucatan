@@ -1,99 +1,126 @@
 # Guía de despliegue — Plataforma POA en línea
 
-Esta guía lleva la plataforma de la red interna a una URL en línea (Fly.io), con el
-código respaldado en GitHub. Está pensada para hacerse una sola vez.
+Objetivo: dejar la plataforma **en línea para consulta** corriendo en una **PC de la
+Sección**, publicada con **Cloudflare Tunnel** (URL HTTPS, sin abrir puertos del
+firewall), y con el código respaldado en **GitHub (privado)**.
 
-> **Antes que nada:** la base de datos y las fotos del personal **no** se suben a
-> GitHub (el `.gitignore` ya las excluye). Sólo viaja el código. Los datos reales
-> viven en el volumen persistente del servidor.
-
----
-
-## 1. Requisitos (instalar una vez)
-
-- **Git** — ya está instalado.
-- **GitHub CLI (`gh`)** — para crear el repositorio y autenticarte:
-  https://cli.github.com/  → o en PowerShell: `winget install GitHub.cli`
-- **Fly CLI (`flyctl`)** — para desplegar:
-  En PowerShell: `iwr https://fly.io/install.ps1 -useb | iex`
-  (necesitas una cuenta en https://fly.io — el plan tiene una capa gratuita).
-
-Cierra y reabre la terminal después de instalarlas para que queden en el PATH.
+> **Los datos del personal (base y fotos) nunca salen de la PC del INAH ni se suben a
+> GitHub.** El `.gitignore` ya los excluye. Sólo el código va al repositorio.
 
 ---
 
-## 2. Subir el código a GitHub (repositorio privado)
+## 1. Subir el código a GitHub (privado)
 
-Desde la carpeta del proyecto:
+Requiere **GitHub CLI**: `winget install GitHub.cli` (reabre la terminal después).
 
 ```bash
 git add -A
-git commit -m "Plataforma POA lista para desplegar"
+git commit -m "Despliegue con Docker + Cloudflare Tunnel"
 gh auth login
 gh repo create poa-inah-yucatan --private --source=. --push
 ```
 
-Esto crea el repositorio **privado** `poa-inah-yucatan` en tu cuenta y sube el código.
-(Si prefieres hacerlo a mano: crea el repo vacío en github.com, luego
-`git remote add origin <URL>` y `git push -u origin main`.)
+Esto crea el repo **privado** y sube el código. (Alternativa manual: crear el repo
+vacío en github.com, `git remote add origin <URL>`, `git push -u origin main`.)
 
 ---
 
-## 3. Desplegar en Fly.io
+## 2. Correr la plataforma en la PC de la Sección
 
-1. Edita `fly.toml` y cambia la línea `app = "poa-inah-yucatan"` por un nombre único
-   (si ese ya está tomado, Fly te avisará).
+Elige **una** de las dos opciones. La **A** es la más simple y no necesita Docker.
 
-2. Inicia sesión y crea la app + el volumen persistente:
+### Opción A — Nativa (recomendada en Windows, ya funciona hoy)
 
-   ```bash
-   fly auth login
-   fly apps create poa-inah-yucatan          # usa el mismo nombre del fly.toml
-   fly volumes create poa_datos --region qro --size 1
-   ```
+Es como ya la usas en la red interna. Doble clic en:
 
-3. Despliega:
-
-   ```bash
-   fly deploy
-   ```
-
-La primera vez, el contenedor crea la base de datos y carga el catálogo POA y el
-personal automáticamente (paso `inicializar.py`). Al terminar, `fly deploy` te da la
-URL pública (algo como `https://poa-inah-yucatan.fly.dev`).
-
-Para actualizar en el futuro (tras cambiar código): `git push` y luego `fly deploy`.
-
----
-
-## 4. (Opcional) Llevar los datos actuales a la versión en línea
-
-El despliegue arranca con la base **recién sembrada** (personal y catálogo, sin
-actividades). Si quieres que las 16 actividades y las fotos que ya tienes en la PC
-interna aparezcan en línea, hay que copiar `servidor_poa/datos` al volumen:
-
-```bash
-# Con la app ya desplegada y encendida:
-tar -C servidor_poa/datos -czf - poa.db fotos | \
-  fly ssh console -C "tar -C /app/servidor_poa/datos -xzf -"
-fly apps restart poa-inah-yucatan
+```
+servidor_poa\iniciar_servidor.bat
 ```
 
-> Este paso sobrescribe la base en línea con la local. Hazlo sólo la primera vez, o
-> perderás lo que se haya capturado en línea. Si tienes dudas, pídeme ayuda antes de
-> correrlo.
+Queda escuchando en `http://localhost:8000`. Deja esa ventana abierta. (Para que
+arranque sola al prender la PC, se puede poner un acceso directo del `.bat` en la
+carpeta de Inicio de Windows.)
+
+### Opción B — En contenedor
+
+En Windows, **Docker Desktop requiere licencia de pago** para instituciones grandes
+como el INAH. Usa en su lugar **Rancher Desktop** o **Podman Desktop** (gratuitos), que
+entienden el mismo `docker-compose.yml`. Luego:
+
+```bash
+docker compose up -d          # levanta la plataforma en http://localhost:8000
+```
+
+El contenedor reutiliza `servidor_poa/datos`, así que ve las actividades y fotos que ya
+tienes. (En un NAS Linux, Docker es gratuito y esta opción es la ideal.)
 
 ---
 
-## 5. Notas de seguridad (importante al pasar a internet)
+## 3. Publicarla en línea con Cloudflare Tunnel
 
-- **Ahora todos entran con PIN.** La primera vez que cada persona entre, la plataforma
-  le pedirá **definir su PIN**. Avísales para que lo hagan pronto: mientras alguien no
-  tenga PIN, cualquiera que elija su nombre podría ponérselo y entrar por esa persona
-  (ventana de "primer día"). Idealmente que las 14 personas entren y definan su PIN el
-  mismo día.
-- Si alguien olvida su PIN, la **coordinación** lo reinicia desde **Personal** y esa
-  persona define uno nuevo en su siguiente ingreso.
-- La cookie de sesión ya va **sólo por HTTPS** en línea (`POA_COOKIE_SEGURA=1` en
-  `fly.toml`).
+El túnel toma lo que corre en `http://localhost:8000` y le da una URL pública HTTPS,
+sin exponer la PC ni tocar el firewall del INAH.
+
+**Necesitas una vez:** una cuenta gratuita en Cloudflare y un **dominio agregado a
+Cloudflare** (si el INAH no te da uno, un dominio propio barato sirve). Sin dominio,
+existe el modo de prueba del paso 3.d.
+
+**a.** Entra a **Cloudflare Zero Trust** → **Networks → Tunnels → Create a tunnel**
+   → tipo *Cloudflared* → ponle nombre (p. ej. `poa-inah`).
+
+**b.** Copia el **token** que te muestra (empieza con `eyJ...`).
+
+**c.** En **Public Hostname** del túnel, define:
+   - *Subdomain/Domain*: el que quieras, p. ej. `poa.tudominio.mx`
+   - *Service*: `http://localhost:8000` (Opción A nativa) **o** `http://poa:8000`
+     (Opción B en contenedor).
+
+**d.** Ejecuta el túnel en la PC:
+
+   - **Nativa:** descarga `cloudflared` para Windows
+     (https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/),
+     y corre:
+     ```bash
+     cloudflared.exe tunnel run --token eyJ...
+     ```
+     (o instálalo como servicio: `cloudflared.exe service install eyJ...`, así arranca solo).
+
+   - **En contenedor:** copia `.env.example` a `.env`, pega el token en `TUNNEL_TOKEN`, y:
+     ```bash
+     docker compose --profile online up -d
+     ```
+
+   - **Modo de prueba (sin dominio ni cuenta), URL temporal:**
+     ```bash
+     cloudflared.exe tunnel --url http://localhost:8000
+     ```
+     Te da una URL `https://xxxxx.trycloudflare.com` que cambia en cada arranque. Sirve
+     para probar; no para el uso diario.
+
+**e.** Cuando ya todos entren por la URL HTTPS del túnel, sube la seguridad de la cookie:
+   - **Nativa:** antes de arrancar el `.bat`, en esa terminal: `set POA_COOKIE_SEGURA=1`
+   - **Contenedor:** cambia `POA_COOKIE_SEGURA=0` a `=1` en `docker-compose.yml`.
+   > No lo pongas en `1` si alguien sigue entrando por `http://IP:8000` sin cifrar: con la
+   > cookie "segura", esos no podrían iniciar sesión.
+
+Comparte la URL del túnel con las 14 personas. Listo: la plataforma está en línea.
+
+---
+
+## 4. Seguridad — importante al pasar a internet
+
+- **Ahora todos entran con PIN.** La primera vez, cada persona **define su PIN**. Avísales
+  para que las 14 lo hagan pronto (idealmente el mismo día): mientras alguien no tenga
+  PIN, cualquiera que elija su nombre podría ponérselo y entrar por esa persona.
+- Si alguien lo olvida, la **coordinación** lo reinicia desde **Personal** y esa persona
+  define uno nuevo al siguiente ingreso.
 - **Eliminar una actividad** sigue siendo exclusivo de la coordinación.
+- El **token del túnel** es un secreto: vive en `.env` (nunca en GitHub).
+
+---
+
+## Alternativa en la nube (si algún día no hay PC siempre encendida)
+
+El repo también trae `fly.toml` para desplegar en **Fly.io** (que por debajo usa el
+mismo `Dockerfile`). Los datos irían a un volumen en la nube en vez de quedarse en el
+INAH. Pídeme la guía si llegas a necesitarla.

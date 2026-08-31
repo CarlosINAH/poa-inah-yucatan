@@ -4,9 +4,31 @@ services:
     image: poa-inah:latest
     container_name: poa-inah
     ports:
-      - "8000:8000"            # http://IP-DEL-NAS:8000
+      - "8000:8000"            # http://IP-DE-LA-PC:8000 (acceso interno)
     volumes:
-      - ./datos:/app/servidor_poa/datos   # BD (poa.db) y fotos persistentes
+      # Reutiliza la carpeta de datos que ya existe (BD + fotos actuales). Si corres el
+      # contenedor en la misma PC donde ya vivía la plataforma, verás tus 16 actividades
+      # y sus fotos sin migrar nada.
+      - ./servidor_poa/datos:/app/servidor_poa/datos
     environment:
       - TZ=America/Merida
+      # Pon "1" SÓLO si todos entran por la URL HTTPS del túnel. Si alguien también
+      # entra por http://IP:8000 (sin cifrar), déjalo en "0" o no podrá iniciar sesión.
+      - POA_COOKIE_SEGURA=0
+    restart: unless-stopped
+
+  # ─── Cloudflare Tunnel (opcional) ─────────────────────────────────────────
+  # Publica la plataforma en una URL HTTPS pública SIN abrir puertos del firewall.
+  # Se activa sólo cuando lo pides:  docker compose --profile online up -d
+  # Necesita un token de túnel (ver DESPLIEGUE.md) puesto en un archivo .env:
+  #   TUNNEL_TOKEN=eyJ...
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: poa-tunnel
+    profiles: ["online"]
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    depends_on:
+      - poa
     restart: unless-stopped
