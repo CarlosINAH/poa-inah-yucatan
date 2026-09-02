@@ -110,6 +110,24 @@
         <input name="fechas_ejecucion" value="{{ act.fechas_ejecucion if act else '' }}"
                placeholder="Ej. 13 de abril de 2026">
       </label>
+
+      <label class="fld span-all">
+        <span>Ubicación exacta en el mapa (opcional)</span>
+        <input name="ubicacion_pin" id="ubicacionPin" autocomplete="off"
+               value="{{ (act.mapa_lat ~ ', ' ~ act.mapa_lon) if (act and act.mapa_lat) else '' }}"
+               placeholder="Pega un enlace de Google Maps, o coordenadas (ej. 21.0982, -89.5987)">
+        <span class="char-count">Si el mapa automático cae mal, fija aquí el punto exacto.
+          En Google Maps: clic derecho en el lugar → clic en las coordenadas para copiarlas.</span>
+      </label>
+
+      <div class="span-all">
+        <button type="button" class="btn sm" id="btnPreviewMapa">Ver ubicación en el mapa</button>
+      </div>
+      <div class="span-all" id="previewMapaWrap" hidden>
+        <img id="previewMapa" alt="Vista previa del mapa"
+             style="width:100%;max-width:520px;border-radius:10px;border:1px solid var(--glass-border-soft);display:none">
+        <p class="char-count" id="previewMapaMsg" style="text-align:left"></p>
+      </div>
     </div>
   </section>
 
@@ -238,4 +256,34 @@
     </div>
   </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Vista previa del mapa: confirma que el marcador caiga donde se hizo la actividad.
+  (function () {
+    const btn = document.getElementById('btnPreviewMapa');
+    if (!btn) return;
+    const zona = document.getElementById('zonaSitio');
+    const pin = document.getElementById('ubicacionPin');
+    const wrap = document.getElementById('previewMapaWrap');
+    const img = document.getElementById('previewMapa');
+    const msg = document.getElementById('previewMapaMsg');
+    btn.addEventListener('click', function () {
+      const q = new URLSearchParams({ zona: zona ? zona.value : '', pin: pin ? pin.value : '' });
+      wrap.hidden = false;
+      img.style.display = 'none';
+      msg.textContent = 'Cargando mapa…';
+      img.onload = function () {
+        img.style.display = 'block';
+        msg.textContent = 'Verifica que el marcador esté donde se hizo la actividad. Si no, ajusta el enlace o las coordenadas y vuelve a ver.';
+      };
+      img.onerror = function () {
+        img.style.display = 'none';
+        msg.textContent = 'No se pudo ubicar automáticamente. Pega un enlace de Google Maps o coordenadas para fijar el punto exacto.';
+      };
+      img.src = '/api/mapa?' + q.toString() + '&_=' + Date.now();
+    });
+  })();
+</script>
 {% endblock %}

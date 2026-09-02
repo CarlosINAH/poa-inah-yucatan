@@ -83,6 +83,10 @@ CREATE TABLE IF NOT EXISTS actividades (
   inf_t4             REAL NOT NULL DEFAULT 0,
   planeacion         TEXT NOT NULL DEFAULT 'Si',
   objetivo           TEXT NOT NULL DEFAULT '',
+  -- Pin exacto de la ubicación (lo confirma quien captura). Si está, el mapa del
+  -- informe usa este punto; si es NULL, se geocodifica el nombre de la zona.
+  mapa_lat           REAL,
+  mapa_lon           REAL,
   observaciones      TEXT NOT NULL DEFAULT '',
   fechas_ejecucion   TEXT NOT NULL DEFAULT '',
   responsable_id     INTEGER REFERENCES usuarios(id),
@@ -201,6 +205,11 @@ def _migrar(con: sqlite3.Connection) -> None:
     # v3.5: objetivo de la actividad (encabeza cada hoja del informe nuevo).
     if "objetivo" not in act_cols:
         con.execute("ALTER TABLE actividades ADD COLUMN objetivo TEXT NOT NULL DEFAULT ''")
+
+    # v3.5: pin exacto de la ubicación por actividad (confirmado al capturar).
+    if "mapa_lat" not in act_cols:
+        con.execute("ALTER TABLE actividades ADD COLUMN mapa_lat REAL")
+        con.execute("ALTER TABLE actividades ADD COLUMN mapa_lon REAL")
 
     # v3.5: coordenadas de cada zona para el mapa del informe.
     zona_cols = {f["name"] for f in con.execute("PRAGMA table_info(zonas)")}

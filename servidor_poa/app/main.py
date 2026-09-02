@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, consolidado, fotos as fotos_mod, pdf
+from . import auth, consolidado, fotos as fotos_mod, mapas, pdf
 from .db import (FOTOS_DIR, PROGRAMAS_NACIONALES, TRIMESTRES, ahora, conectar,
                  crear_esquema, norm)
 
@@ -317,10 +317,11 @@ def nueva_form(request: Request, anio: int = 0, trimestre: int = 0,
         return RedirectResponse("/registrar", status_code=303)
     # `act` debe traer TODOS los campos que la plantilla lee: al venir del paso 1 sólo
     # se conoce el periodo, el resto va en blanco pero tiene que existir.
-    vacia = {c: "" for c in ("titulo", "zona", "fechas_ejecucion", "observaciones")}
+    vacia = {c: "" for c in ("titulo", "zona", "fechas_ejecucion", "observaciones",
+                             "objetivo")}
     vacia.update({"id": None, "catalogo_id": 0, "responsable_id": None,
                   "programa_nacional": "Ninguno", "planeacion": "Si",
-                  "planeado": 1, "realizado": 1,
+                  "planeado": 1, "realizado": 1, "mapa_lat": None, "mapa_lon": None,
                   "anio": anio, "trimestre": trimestre})
     return vista(request, "actividad_form.html", {
         "u": u, "act": vacia,
@@ -356,6 +357,10 @@ def _leer_form_actividad(datos: dict) -> dict:
         "planeacion": "Si" if (datos.get("planeacion") or "Si") == "Si" else "No",
         "objetivo": (datos.get("objetivo") or "").strip(),
         "observaciones": (datos.get("observaciones") or "").strip(),
+        # Pin exacto de la ubicación: se pega un enlace de mapa o coordenadas. Si no
+        # trae coordenadas válidas, queda NULL y el informe geocodifica el nombre.
+        **dict(zip(("mapa_lat", "mapa_lon"),
+                   mapas.parsear_coordenadas(datos.get("ubicacion_pin") or "") or (None, None))),
         "fechas_ejecucion": (datos.get("fechas_ejecucion") or "").strip(),
         "responsable_id": int(datos.get("responsable_id") or 0) or None,
     }
@@ -686,6 +691,23 @@ def api_parecidas(titulo: str = "", catalogo_id: int = 0, anio: int = 0,
             })
     sugerencias.sort(key=lambda s: -s["parecido"])
     return JSONResponse(sugerencias[:5])
+
+
+@app.get("/api/mapa")
+def api_mapa(zona: str = "", pin: str = "", u: sqlite3.Row = Depends(exigir_sesion),
+            con: sqlite3.Connection = Depends(bd)):
+    """Vista previa del mapa de una ubicación, para confirmar el punto al capturar.
+
+    Usa el pin exacto (enlace/coordenadas) si viene; si no, geocodifica el nombre.
+    Devuelve 404 si no se pudo ubicar, para que el formulario muestre el aviso.
+    """
+    coords = mapas.parsear_coordenadas(pin) if pin.strip() else None
+    lat, lon = coords if coords else (None, None)
+    ruta, _ = mapas.obtener_mapa(con, zona, lat, lon)
+    if not ruta or not ruta.exists():
+        raise HTTPException(404, "No se pudo ubicar.")
+    return Response(ruta.read_bytes(), media_type="image/png",
+                    headers={"Cache-Control": "private, max-age=600"})
 
 
 @app.get("/api/catalogo/{cat_id}")

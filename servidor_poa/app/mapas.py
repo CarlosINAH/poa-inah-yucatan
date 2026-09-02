@@ -20,6 +20,7 @@ sobre los agregadores sin key (poco fiables: el que probamos ni siquiera resolv�
 from __future__ import annotations
 
 import math
+import re
 import sqlite3
 import urllib.parse
 import urllib.request
@@ -41,6 +42,78 @@ _SESGO = ", Yucatán, México"   # los sitios de la Sección están todos en Yuc
 _TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 _ZOOM = 14
 _ANCHO, _ALTO = 640, 360
+
+
+# --------------------------------------------------- pin exacto (coordenadas)
+
+# Patrones de lat,lon en enlaces de Google Maps / OpenStreetMap y en texto suelto.
+_PATRONES = [
+    r'@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)',            # google …/@LAT,LON,15z
+    r'!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)',        # google place …!3dLAT!4dLON
+    r'[?&](?:q|ll|center|destination)=(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)',  # ?q=LAT,LON
+    r'mlat=(-?\d{1,2}\.\d+)&mlon=(-?\d{1,3}\.\d+)',   # osm ?mlat=..&mlon=..
+    r'#map=\d+/(-?\d{1,2}\.\d+)/(-?\d{1,3}\.\d+)',    # osm #map=z/LAT/LON
+    r'^\s*(-?\d{1,2}\.\d+)\s*[,; ]\s*(-?\d{1,3}\.\d+)\s*$',  # "LAT, LON" a secas
+]
+
+
+def _coords_validas(lat: float, lon: float):
+    return (lat, lon) if -90 <= lat <= 90 and -180 <= lon <= 180 else None
+
+
+def _buscar_en_texto(texto: str):
+    for patron in _PATRONES:
+        m = re.search(patron, texto)
+        if m:
+            try:
+                r = _coords_validas(float(m.group(1)), float(m.group(2)))
+            except ValueError:
+                r = None
+            if r:
+                return r
+    return None
+
+
+def parsear_coordenadas(texto: str):
+    """Saca (lat, lon) de un pegado: coordenadas sueltas o un enlace de mapa.
+
+    Acepta Google Maps (…/@lat,lon, …!3d!4d, ?q=lat,lon), OpenStreetMap y texto
+    «lat, lon». Los enlaces cortos (maps.app.goo.gl, goo.gl) se resuelven siguiendo
+    la redirección. Devuelve None si no encuentra coordenadas válidas.
+    """
+    texto = urllib.parse.unquote((texto or "").strip())
+    if not texto:
+        return None
+    directo = _buscar_en_texto(texto)
+    if directo:
+        return directo
+    # Enlace corto: seguir la redirección y buscar en la URL final.
+    if texto.startswith("http") and ("goo.gl" in texto or "maps.app" in texto):
+        try:
+            peticion = urllib.request.Request(texto, headers={"User-Agent": _UA})
+            with urllib.request.urlopen(peticion, timeout=_TIMEOUT) as r:
+                final = urllib.parse.unquote(r.geturl())
+            return _buscar_en_texto(final)
+        except Exception:
+            return None
+    return None
+
+
+def mapa_desde_coords(lat: float, lon: float) -> Path | None:
+    """Mapa con marcador en un punto exacto (pin confirmado). Cacheado por coordenada."""
+    clave = f"coord_{lat:.5f}_{lon:.5f}".replace(".", "p").replace("-", "m")
+    cache = MAPAS_DIR / f"{clave}.png"
+    if cache.exists():
+        return cache
+    try:
+        img = _dibujar_mapa(lat, lon)
+        if img is None:
+            return None
+        MAPAS_DIR.mkdir(parents=True, exist_ok=True)
+        img.save(cache, "PNG")
+        return cache
+    except Exception:
+        return None
 
 
 def _geocodificar(con: sqlite3.Connection, zona: str, clave: str):
@@ -108,20 +181,25 @@ def _dibujar_mapa(lat: float, lon: float) -> Image.Image | None:
     return lienzo
 
 
-def obtener_mapa(con: sqlite3.Connection, zona: str) -> tuple[Path | None, str]:
+def obtener_mapa(con: sqlite3.Connection, zona: str,
+                 lat: float | None = None, lon: float | None = None) -> tuple[Path | None, str]:
     """(ruta_de_la_imagen | None, nombre_del_lugar).
 
-    La ruta es None cuando no se pudo dibujar el mapa; el segundo valor es siempre el
-    nombre del lugar (el «título del punto geográfico») para el respaldo en texto.
+    Si hay un pin exacto (lat, lon) se usa ése; si no, se geocodifica el nombre de la
+    zona. La ruta es None cuando no se pudo dibujar el mapa; el segundo valor es siempre
+    el nombre del lugar (el «título del punto geográfico») para el respaldo en texto.
     """
     zona = (zona or "").strip()
+    # 1) Pin exacto confirmado por quien capturó: tiene prioridad sobre el nombre.
+    if lat is not None and lon is not None:
+        return mapa_desde_coords(lat, lon), (zona or "Ubicación registrada")
+    # 2) Sin pin: geocodificar el nombre de la zona.
     if not zona:
         return None, ""
     clave = norm(zona)
     cache = MAPAS_DIR / f"{clave}.png"
     if cache.exists():
         return cache, zona
-
     try:
         coords = _geocodificar(con, zona, clave)
         if not coords:
