@@ -8,6 +8,10 @@
 {% if puede_editar %}<a class="btn sm" href="/actividades/{{ act.id }}/editar">Editar ficha</a>{% endif %}
 {% endblock %}
 
+{% block head %}
+<link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
+{% endblock %}
+
 {% block contenido %}
 <div class="grid-2">
   <div class="stack">
@@ -166,6 +170,16 @@
         <div class="dfield filled"><label>Restaurador responsable</label><output>{{ act.responsable_nombre or '—' }}</output></div>
         <div class="dfield filled"><label>Cargo / Puesto</label><output>{{ act.responsable_cargo or '—' }}</output></div>
       </div>
+
+      {% if act.mapa_lat %}
+      <div id="mapaDetalle" class="mapa-picker" style="height:240px;margin-top:14px"
+           data-lat="{{ act.mapa_lat }}" data-lon="{{ act.mapa_lon }}"
+           data-nombre="{{ act.zona or 'Ubicación registrada' }}"></div>
+      {% elif act.zona %}
+      <img src="/api/mapa?zona={{ act.zona | urlencode }}" alt="Mapa de {{ act.zona }}"
+           loading="lazy" onerror="this.style.display='none'"
+           style="width:100%;border-radius:10px;margin-top:14px;border:1px solid var(--glass-border-soft)">
+      {% endif %}
     </section>
 
     <section class="card">
@@ -220,4 +234,28 @@
     {% endif %}
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/vendor/leaflet/leaflet.js"></script>
+<script>
+  // Mapa de solo lectura con el punto exacto de la actividad (cuando hay pin).
+  (function () {
+    const div = document.getElementById('mapaDetalle');
+    if (!div || typeof L === 'undefined') return;
+    const lat = parseFloat(div.dataset.lat), lon = parseFloat(div.dataset.lon);
+    if (isNaN(lat) || isNaN(lon)) return;
+    const icono = L.icon({
+      iconUrl: '/static/vendor/leaflet/images/marker-icon.png',
+      iconRetinaUrl: '/static/vendor/leaflet/images/marker-icon-2x.png',
+      shadowUrl: '/static/vendor/leaflet/images/marker-shadow.png',
+      iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
+    });
+    const map = L.map(div, { scrollWheelZoom: false }).setView([lat, lon], 15);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(map);
+    L.marker([lat, lon], { icon: icono }).addTo(map).bindPopup(div.dataset.nombre || '');
+    setTimeout(() => map.invalidateSize(), 200);
+  })();
+</script>
 {% endblock %}

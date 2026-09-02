@@ -681,6 +681,19 @@
     }
     .sug-zona .btn.sm { flex: none; }
 
+    /* Mapa interactivo para fijar la ubicación (Leaflet) */
+    .mapa-picker {
+      height: 340px; border-radius: 12px; overflow: hidden;
+      border: 1px solid var(--glass-border-soft); box-shadow: var(--specular);
+      z-index: 0;   /* mantiene los controles del mapa por debajo de la barra superior */
+    }
+    .chk-inline {
+      display: flex; align-items: center; gap: 8px; cursor: pointer;
+      margin-bottom: 10px; font-size: 12.5px; font-weight: 650; color: var(--ink-soft);
+    }
+    .chk-inline input { width: auto; min-height: 0; margin: 0; box-shadow: none; }
+    .leaflet-container { font: inherit; background: var(--glass-soft); }
+
     /* Lists */
     .list { display: grid; gap: 10px; max-height: 620px; overflow: auto; padding-right: 2px; }
     .rep-card {
