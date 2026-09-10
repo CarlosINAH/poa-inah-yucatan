@@ -138,20 +138,24 @@ def _geocodificar(con: sqlite3.Connection, zona: str, clave: str):
     return lat, lon
 
 
-def buscar_lugares(consulta: str, limite: int = 6) -> list[dict]:
+def buscar_lugares(consulta: str, limite: int = 6, solo_mexico: bool = True) -> list[dict]:
     """Busca lugares por nombre en OpenStreetMap (Nominatim) y devuelve candidatos.
 
-    Cada candidato: {'nombre': str, 'lat': float, 'lon': float}. Sesgado a México y a
-    Yucatán. Best-effort: si no hay internet o el servicio falla, devuelve []. Se usa
-    para el buscador del formulario y para centrar el mapa en el municipio elegido.
+    Cada candidato: {'nombre': str, 'lat': float, 'lon': float}. Con `solo_mexico`
+    (por defecto) se acota a México; en `False` busca en todo el mundo (actividades
+    fuera del país). Best-effort: si no hay internet o el servicio falla, devuelve [].
+    Se usa para el buscador del formulario y para centrar el mapa.
     """
     consulta = (consulta or "").strip()
     if len(consulta) < 3:
         return []
-    params = urllib.parse.urlencode({
+    campos = {
         "q": consulta, "format": "json", "limit": max(1, min(limite, 10)),
-        "countrycodes": "mx", "accept-language": "es",
-    })
+        "accept-language": "es",
+    }
+    if solo_mexico:
+        campos["countrycodes"] = "mx"
+    params = urllib.parse.urlencode(campos)
     url = "https://nominatim.openstreetmap.org/search?" + params
     try:
         peticion = urllib.request.Request(url, headers={"User-Agent": _UA})

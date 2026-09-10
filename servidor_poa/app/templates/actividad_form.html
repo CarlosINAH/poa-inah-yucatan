@@ -97,7 +97,18 @@
         <span class="char-count">Una o dos líneas: el propósito de la actividad. Encabeza la hoja del informe.</span>
       </label>
 
-      <label class="fld">
+      <div class="fld span-all">
+        <label class="chk-inline" style="margin:0">
+          <input type="checkbox" id="chkFuera" name="fuera_estado" value="1"
+                 {% if act and act.fuera_estado %}checked{% endif %}>
+          <span>La actividad fue fuera de Yucatán (otro estado o país)</span>
+        </label>
+        <span class="char-count" style="text-align:left;margin-top:4px">Márcala si fue una
+          comisión en otro estado o en el extranjero: podrás escribir el lugar a mano y
+          buscarlo en el mapa.</span>
+      </div>
+
+      <label class="fld" id="campoMunicipio">
         <span>Municipio</span>
         <select id="municipio" name="municipio">
           <option value="">Selecciona…</option>
@@ -108,16 +119,17 @@
         <span class="char-count">Municipio de Yucatán. Al elegirlo, el mapa se centra ahí.</span>
       </label>
 
-      <label class="fld span-2">
-        <span>Comisaría / localidad o sitio</span>
+      <label class="fld span-2" id="campoZona">
+        <span id="zonaLabel">Comisaría / localidad o sitio</span>
         <input id="zonaSitio" name="zona" list="listaComisarias" autocomplete="off"
                value="{{ act.zona if act else '' }}"
                placeholder="Ej. Cholul, o el nombre del sitio (Chichén Itzá)">
         <datalist id="listaComisarias">
           {% for z in zonas %}<option value="{{ z }}">{% endfor %}
         </datalist>
-        <span class="char-count">Al elegir municipio aquí aparecen sus comisarías; o
-          escribe el sitio. Si no ocurrió en un lugar (una ponencia, un curso), déjala vacía.</span>
+        <span class="char-count" id="zonaAyuda">Al elegir municipio aquí aparecen sus
+          comisarías; o escribe el sitio. Si no ocurrió en un lugar (una ponencia, un
+          curso), déjala vacía.</span>
       </label>
 
       <label class="fld">
@@ -138,10 +150,6 @@
           <button type="button" class="btn sm" id="btnBuscarLugar">Buscar</button>
         </div>
         <ul id="resultadosLugar" class="resultados-lugar" hidden></ul>
-        <label class="chk-inline" style="margin-top:8px">
-          <input type="checkbox" id="chkResto">
-          <span>La actividad fue en otro estado (activar resto de la República)</span>
-        </label>
         <div id="mapaPicker" class="mapa-picker"></div>
         <input type="text" name="ubicacion_pin" id="ubicacionPin" autocomplete="off"
                value="{{ (act.mapa_lat ~ ', ' ~ act.mapa_lon) if (act and act.mapa_lat) else '' }}"
@@ -293,8 +301,12 @@
     const div = document.getElementById('mapaPicker');
     if (!div || typeof L === 'undefined') return;
     const pin = document.getElementById('ubicacionPin');
-    const chk = document.getElementById('chkResto');
+    const chk = document.getElementById('chkFuera');   // "fuera de Yucatán"
     const selMuni = document.getElementById('municipio');
+    const campoMunicipio = document.getElementById('campoMunicipio');
+    const campoZona = document.getElementById('campoZona');
+    const zonaLabel = document.getElementById('zonaLabel');
+    const zonaAyuda = document.getElementById('zonaAyuda');
     const inZona = document.getElementById('zonaSitio');
     const listaCom = document.getElementById('listaComisarias');
     const buscar = document.getElementById('buscarLugar');
@@ -330,13 +342,35 @@
     function centrar(lat, lon, zoom) { map.setView([lat, lon], zoom || 12); }
     map.on('click', e => fijar(e.latlng.lat, e.latlng.lng, false));
 
-    chk.addEventListener('change', function () {
-      if (chk.checked) { map.setMaxBounds(null); map.setView([23.6, -102.5], 5); }
-      else { map.setMaxBounds(peninsula); map.fitBounds(peninsula); }
-    });
+    // --- Fuera de Yucatán: oculta municipio/comisaría, habilita texto libre y libera
+    //     el mapa a todo el mundo (otro estado o país) ---
+    function aplicarModoFuera() {
+      const fuera = chk.checked;
+      if (campoMunicipio) campoMunicipio.hidden = fuera;
+      if (fuera && selMuni) selMuni.value = '';       // no se guarda municipio de Yucatán
+      if (campoZona) campoZona.classList.toggle('span-2', !fuera);
+      if (zonaLabel) zonaLabel.textContent = fuera ? 'Lugar (estado o país)' : 'Comisaría / localidad o sitio';
+      if (inZona) inZona.placeholder = fuera
+        ? 'Ej. Palenque, Chiapas · o Antigua, Guatemala'
+        : 'Ej. Cholul, o el nombre del sitio (Chichén Itzá)';
+      if (zonaAyuda) zonaAyuda.textContent = fuera
+        ? 'Escribe el lugar a mano y búscalo en el mapa (abajo) para fijar el punto.'
+        : 'Al elegir municipio aquí aparecen sus comisarías; o escribe el sitio. Si no ocurrió en un lugar, déjala vacía.';
+      if (fuera) {
+        if (listaCom) listaCom.innerHTML = '';        // sin sugerencias de comisarías
+        map.setMaxBounds(null);
+        if (!marcador) map.setView([23.6, -102.5], 5); // vista de México si aún no hay pin
+      } else {
+        map.setMaxBounds(peninsula);
+        llenarComisarias();
+        if (!marcador) map.fitBounds(peninsula);
+      }
+    }
+    chk.addEventListener('change', aplicarModoFuera);
 
     // --- Nivel 2: la lista de comisarías depende del municipio elegido ---
     function llenarComisarias() {
+      if (chk.checked) return;                          // fuera de Yucatán: no hay comisarías
       const muni = selMuni ? selMuni.value : '';
       const lista = comisarias[muni] || [];
       if (listaCom) {
@@ -348,7 +382,8 @@
     // --- Buscar un lugar en OpenStreetMap y elegirlo ---
     async function buscarLugar(texto) {
       const params = new URLSearchParams({ q: texto });
-      if (selMuni && selMuni.value) params.set('municipio', selMuni.value);
+      if (chk.checked) params.set('fuera', '1');        // buscar en todo el mundo
+      else if (selMuni && selMuni.value) params.set('municipio', selMuni.value);
       try {
         const r = await fetch('/api/buscar-lugar?' + params.toString());
         return r.ok ? await r.json() : [];
@@ -412,7 +447,7 @@
     }
     pin.addEventListener('change', () => desdeTexto(true));
 
-    llenarComisarias();                        // comisarías del municipio ya elegido (al editar)
+    aplicarModoFuera();                        // aplica el modo (dentro/fuera) y comisarías al cargar
     desdeTexto(true);                          // marcador inicial al editar
     setTimeout(() => map.invalidateSize(), 200);  // Leaflet recalcula tras el layout
   })();

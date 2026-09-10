@@ -247,6 +247,7 @@ def importar(con, origen: bytes | bytearray | str | Path, anio: int,
             "catalogo_id": cat_id,
             "zona": "",          # el Excel no tiene columna de zona; se llena en la plataforma
             "municipio": "",     # ni municipio; se completa desde la plataforma
+            "fuera_estado": 0,   # los históricos son de Yucatán salvo edición manual
             "programa_nacional": prog,
             "anio": anio,
             "trimestre": trimestre,

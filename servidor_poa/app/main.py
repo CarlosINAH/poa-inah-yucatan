@@ -322,7 +322,7 @@ def nueva_form(request: Request, anio: int = 0, trimestre: int = 0,
     vacia.update({"id": None, "catalogo_id": 0, "responsable_id": None,
                   "programa_nacional": "Ninguno", "planeacion": "Si",
                   "planeado": 1, "realizado": 1, "mapa_lat": None, "mapa_lon": None,
-                  "anio": anio, "trimestre": trimestre})
+                  "fuera_estado": 0, "anio": anio, "trimestre": trimestre})
     return vista(request, "actividad_form.html", {
         "u": u, "act": vacia,
         "error": None, "editando": False, "paso": 2,
@@ -351,7 +351,9 @@ def _leer_form_actividad(datos: dict) -> dict:
         "titulo": (datos.get("titulo") or "").strip(),
         "catalogo_id": int(datos.get("catalogo_id") or 0),
         "zona": (datos.get("zona") or "").strip(),
-        "municipio": (datos.get("municipio") or "").strip(),
+        # Fuera de Yucatán: el lugar se escribe a mano y no aplica el municipio de la lista.
+        "fuera_estado": 1 if datos.get("fuera_estado") else 0,
+        "municipio": "" if datos.get("fuera_estado") else (datos.get("municipio") or "").strip(),
         "programa_nacional": (datos.get("programa_nacional") or "Ninguno").strip(),
         "anio": int(datos.get("anio") or 0),
         "trimestre": trimestre if trimestre in (1, 2, 3, 4) else 0,
@@ -718,15 +720,18 @@ def api_mapa(zona: str = "", pin: str = "", u: sqlite3.Row = Depends(exigir_sesi
 
 
 @app.get("/api/buscar-lugar")
-def api_buscar_lugar(q: str = "", municipio: str = "",
+def api_buscar_lugar(q: str = "", municipio: str = "", fuera: str = "",
                      u: sqlite3.Row = Depends(exigir_sesion)):
     """Busca lugares por nombre en OpenStreetMap para ubicar el punto en el mapa.
 
-    Si viene `municipio`, se acota la búsqueda a ese municipio de Yucatán (así el
-    resultado cae dentro del municipio elegido). Devuelve hasta 6 candidatos con
-    nombre y coordenadas. Best-effort: [] si no hay internet o el servicio falla.
+    Dentro de Yucatán: si viene `municipio`, se acota la búsqueda a ese municipio.
+    Fuera de Yucatán (`fuera=1`): se busca en todo el mundo (otro estado o país), sin
+    acotar a Yucatán ni a México. Devuelve hasta 6 candidatos {nombre, lat, lon}.
+    Best-effort: [] si no hay internet o el servicio falla.
     """
     consulta = (q or "").strip()
+    if fuera:
+        return JSONResponse(mapas.buscar_lugares(consulta, solo_mexico=False))
     muni = (municipio or "").strip()
     if muni and consulta:
         consulta = f"{consulta}, {muni}, Yucatán, México"

@@ -67,6 +67,9 @@ CREATE TABLE IF NOT EXISTS actividades (
   zona               TEXT NOT NULL DEFAULT '',
   zona_norm          TEXT NOT NULL DEFAULT '',
   municipio          TEXT NOT NULL DEFAULT '',
+  -- 1 si la actividad fue fuera de Yucatán (otro estado o país): entonces el lugar se
+  -- escribe a mano en `zona` y no aplica el municipio de la lista de Yucatán.
+  fuera_estado       INTEGER NOT NULL DEFAULT 0,
   programa_nacional  TEXT NOT NULL DEFAULT 'Ninguno',
   anio               INTEGER NOT NULL,
   -- Trimestre al que pertenece la actividad (1..4). Es la categoría que se elige al
@@ -215,6 +218,10 @@ def _migrar(con: sqlite3.Connection) -> None:
     # v3.7: municipio de Yucatán (nivel 1 de la ubicación; la zona/sitio es el detalle).
     if "municipio" not in act_cols:
         con.execute("ALTER TABLE actividades ADD COLUMN municipio TEXT NOT NULL DEFAULT ''")
+
+    # v3.8: actividad fuera de Yucatán (otro estado o país); el lugar se escribe a mano.
+    if "fuera_estado" not in act_cols:
+        con.execute("ALTER TABLE actividades ADD COLUMN fuera_estado INTEGER NOT NULL DEFAULT 0")
 
     # v3.5: coordenadas de cada zona para el mapa del informe.
     zona_cols = {f["name"] for f in con.execute("PRAGMA table_info(zonas)")}
