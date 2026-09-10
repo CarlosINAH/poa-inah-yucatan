@@ -246,6 +246,7 @@ def importar(con, origen: bytes | bytearray | str | Path, anio: int,
             "titulo": titulo,
             "catalogo_id": cat_id,
             "zona": "",          # el Excel no tiene columna de zona; se llena en la plataforma
+            "municipio": "",     # ni municipio; se completa desde la plataforma
             "programa_nacional": prog,
             "anio": anio,
             "trimestre": trimestre,

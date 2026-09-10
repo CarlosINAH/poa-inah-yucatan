@@ -6,7 +6,7 @@
   <title>{% block titulo %}Plataforma POA{% endblock %} · Conservación · INAH Yucatán</title>
   {# El ?v= obliga al navegador a soltar su copia vieja cuando el tema cambia.
      Sin esto, tras un rediseño cada quien sigue viendo el CSS que tenía en caché. #}
-  <link rel="stylesheet" href="/static/tema.css?v=9">
+  <link rel="stylesheet" href="/static/tema.css?v=10">
   {% block head %}{% endblock %}
   <script>
     // Antes de pintar, para que no haya destello blanco al cargar en modo oscuro.
@@ -103,7 +103,7 @@
     {% if aviso %}<div class="toast ok"><div>{{ aviso }}</div></div>{% endif %}
   </div>
 
-  <script src="/static/app.js?v=4"></script>
+  <script src="/static/app.js?v=5"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

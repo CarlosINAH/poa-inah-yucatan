@@ -97,16 +97,27 @@
         <span class="char-count">Una o dos líneas: el propósito de la actividad. Encabeza la hoja del informe.</span>
       </label>
 
+      <label class="fld">
+        <span>Municipio</span>
+        <select id="municipio" name="municipio">
+          <option value="">Selecciona…</option>
+          {% for m in municipios %}
+          <option value="{{ m }}" {% if act and act.municipio == m %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+        <span class="char-count">Municipio de Yucatán. Al elegirlo, el mapa se centra ahí.</span>
+      </label>
+
       <label class="fld span-2">
-        <span>Zona / Sitio</span>
-        <input id="zonaSitio" name="zona" list="listaZonas" autocomplete="off"
-               value="{{ act.zona if act else '' }}" placeholder="Ej. Chichén Itzá">
-        <datalist id="listaZonas">
+        <span>Comisaría / localidad o sitio</span>
+        <input id="zonaSitio" name="zona" list="listaComisarias" autocomplete="off"
+               value="{{ act.zona if act else '' }}"
+               placeholder="Ej. Cholul, o el nombre del sitio (Chichén Itzá)">
+        <datalist id="listaComisarias">
           {% for z in zonas %}<option value="{{ z }}">{% endfor %}
         </datalist>
-        <span id="sugerenciaZona" class="sug-zona" hidden></span>
-        <span class="char-count">Escribe la que sea; se agrega a la lista.
-          Si la actividad no ocurrió en un sitio (una ponencia, un curso), déjala vacía.</span>
+        <span class="char-count">Al elegir municipio aquí aparecen sus comisarías; o
+          escribe el sitio. Si no ocurrió en un lugar (una ponencia, un curso), déjala vacía.</span>
       </label>
 
       <label class="fld">
@@ -116,12 +127,18 @@
       </label>
 
       <div class="fld span-all">
-        <span>Ubicación exacta en el mapa (opcional)</span>
+        <span>Ubicación en el mapa (opcional)</span>
         <p class="char-count" style="text-align:left;margin:0 0 8px">
-          Haz clic en el mapa para marcar el punto exacto donde se hizo la actividad;
-          puedes arrastrar el marcador para ajustarlo. Encuadrado en la Península de
-          Yucatán.</p>
-        <label class="chk-inline">
+          Busca el lugar y elígelo de la lista, o haz clic en el mapa para marcar el
+          punto exacto (puedes arrastrar el marcador). Al elegir municipio o comisaría,
+          el mapa se centra ahí.</p>
+        <div class="buscar-lugar">
+          <input type="search" id="buscarLugar" autocomplete="off"
+                 placeholder="Buscar un lugar: calle, sitio, comisaría…">
+          <button type="button" class="btn sm" id="btnBuscarLugar">Buscar</button>
+        </div>
+        <ul id="resultadosLugar" class="resultados-lugar" hidden></ul>
+        <label class="chk-inline" style="margin-top:8px">
           <input type="checkbox" id="chkResto">
           <span>La actividad fue en otro estado (activar resto de la República)</span>
         </label>
@@ -264,13 +281,26 @@
 {% block scripts %}
 <script src="/static/vendor/leaflet/leaflet.js"></script>
 <script>
-  // Mapa interactivo para fijar la ubicación exacta. Encuadrado en la Península de
-  // Yucatán; el checkbox libera el resto de la República para actividades en otro estado.
+  // Comisarías/localidades por municipio (nivel 2 de la ubicación).
+  window.COMISARIAS = {{ comisarias | tojson }};
+</script>
+<script>
+  // Ubicación por niveles: Municipio → comisaría/localidad → punto exacto en el mapa.
+  // El mapa se centra al elegir municipio/comisaría; el buscador (OpenStreetMap) permite
+  // encontrar el lugar y fijar el pin. Encuadrado en la Península de Yucatán; el checkbox
+  // libera el resto de la República.
   (function () {
     const div = document.getElementById('mapaPicker');
     if (!div || typeof L === 'undefined') return;
     const pin = document.getElementById('ubicacionPin');
     const chk = document.getElementById('chkResto');
+    const selMuni = document.getElementById('municipio');
+    const inZona = document.getElementById('zonaSitio');
+    const listaCom = document.getElementById('listaComisarias');
+    const buscar = document.getElementById('buscarLugar');
+    const btnBuscar = document.getElementById('btnBuscarLugar');
+    const resultados = document.getElementById('resultadosLugar');
+    const comisarias = window.COMISARIAS || {};
 
     const icono = L.icon({
       iconUrl: '/static/vendor/leaflet/images/marker-icon.png',
@@ -284,7 +314,7 @@
       { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(map);
 
     let marcador = null;
-    function fijar(lat, lon, centrar) {
+    function fijar(lat, lon, centrar, zoom) {
       if (marcador) { marcador.setLatLng([lat, lon]); }
       else {
         marcador = L.marker([lat, lon], { icon: icono, draggable: true }).addTo(map);
@@ -294,8 +324,10 @@
         });
       }
       pin.value = lat.toFixed(6) + ', ' + lon.toFixed(6);
-      if (centrar) map.setView([lat, lon], Math.max(map.getZoom(), 14));
+      if (centrar) map.setView([lat, lon], zoom || Math.max(map.getZoom(), 14));
     }
+    // Centrar sin poner marcador (al elegir municipio: aún no es el punto exacto).
+    function centrar(lat, lon, zoom) { map.setView([lat, lon], zoom || 12); }
     map.on('click', e => fijar(e.latlng.lat, e.latlng.lng, false));
 
     chk.addEventListener('change', function () {
@@ -303,16 +335,84 @@
       else { map.setMaxBounds(peninsula); map.fitBounds(peninsula); }
     });
 
+    // --- Nivel 2: la lista de comisarías depende del municipio elegido ---
+    function llenarComisarias() {
+      const muni = selMuni ? selMuni.value : '';
+      const lista = comisarias[muni] || [];
+      if (listaCom) {
+        listaCom.innerHTML = lista.map(c =>
+          '<option value="' + c.replace(/"/g, '&quot;') + '">').join('');
+      }
+    }
+
+    // --- Buscar un lugar en OpenStreetMap y elegirlo ---
+    async function buscarLugar(texto) {
+      const params = new URLSearchParams({ q: texto });
+      if (selMuni && selMuni.value) params.set('municipio', selMuni.value);
+      try {
+        const r = await fetch('/api/buscar-lugar?' + params.toString());
+        return r.ok ? await r.json() : [];
+      } catch (e) { return []; }
+    }
+    function pintarResultados(items) {
+      if (!resultados) return;
+      if (!items.length) {
+        resultados.innerHTML = '<li class="vacio">Sin resultados. Prueba otro nombre o marca el punto en el mapa.</li>';
+        resultados.hidden = false;
+        return;
+      }
+      resultados.innerHTML = items.map((it, i) =>
+        '<li><button type="button" data-i="' + i + '">' +
+        String(it.nombre).replace(/</g, '&lt;') + '</button></li>').join('');
+      resultados.hidden = false;
+      resultados._items = items;
+    }
+    if (resultados) {
+      resultados.addEventListener('click', e => {
+        const b = e.target.closest('button[data-i]');
+        if (!b) return;
+        const it = (resultados._items || [])[+b.dataset.i];
+        if (!it) return;
+        const lat = +it.lat, lon = +it.lon;
+        if (!peninsula.contains([lat, lon])) { chk.checked = true; map.setMaxBounds(null); }
+        fijar(lat, lon, true, 16);
+        resultados.hidden = true;
+      });
+    }
+    async function lanzarBusqueda() {
+      const texto = (buscar.value || '').trim();
+      if (texto.length < 3) return;
+      pintarResultados(await buscarLugar(texto));
+    }
+    if (btnBuscar) btnBuscar.addEventListener('click', lanzarBusqueda);
+    if (buscar) buscar.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); lanzarBusqueda(); }
+    });
+
+    // Al elegir municipio: llena comisarías y centra el mapa en el municipio.
+    let tMuni;
+    async function alElegirMunicipio() {
+      llenarComisarias();
+      const muni = selMuni ? selMuni.value : '';
+      if (!muni) return;
+      const items = await buscarLugar('');   // usa sólo el municipio como consulta
+      if (items.length) centrar(+items[0].lat, +items[0].lon, 12);
+    }
+    if (selMuni) selMuni.addEventListener('change', () => {
+      clearTimeout(tMuni); tMuni = setTimeout(alElegirMunicipio, 50);
+    });
+
     // Coordenadas pegadas a mano → mueve el marcador.
-    function desdeTexto(centrar) {
+    function desdeTexto(centrarEn) {
       const m = (pin.value || '').match(/(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/);
       if (!m) return;
       const lat = +m[1], lon = +m[2];
       if (!peninsula.contains([lat, lon])) { chk.checked = true; map.setMaxBounds(null); }
-      fijar(lat, lon, centrar);
+      fijar(lat, lon, centrarEn, 16);
     }
     pin.addEventListener('change', () => desdeTexto(true));
 
+    llenarComisarias();                        // comisarías del municipio ya elegido (al editar)
     desdeTexto(true);                          // marcador inicial al editar
     setTimeout(() => map.invalidateSize(), 200);  // Leaflet recalcula tras el layout
   })();

@@ -270,12 +270,15 @@ def _fotos_ordenadas(fotos: list) -> list:
 def _bloque_ubicacion(con, act: dict) -> list:
     """Etiqueta «Ubicación» + mapa con el nombre del sitio, o respaldo en texto."""
     zona = act.get("zona") or ""
+    municipio = act.get("municipio") or ""
+    # Etiqueta y consulta de geocodificación: «comisaría/sitio, municipio».
+    lugar = ", ".join(p for p in (zona, municipio) if p)
     lat, lon = act.get("mapa_lat"), act.get("mapa_lon")
     piezas: list = [_etiqueta_seccion("Ubicación")]
-    if not zona and lat is None:
+    if not lugar and lat is None:
         piezas.append(_campo("Sitio", "Sin ubicación registrada"))
         return piezas
-    ruta, nombre = obtener_mapa(con, zona, lat, lon)
+    ruta, nombre = obtener_mapa(con, lugar, lat, lon)
     if ruta and ruta.exists():
         try:
             img = Image(str(ruta), width=_MAPA_ANCHO, height=_MAPA_ALTO)

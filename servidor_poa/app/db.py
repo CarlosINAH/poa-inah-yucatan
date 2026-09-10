@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS actividades (
   catalogo_id        INTEGER NOT NULL REFERENCES catalogo_poa(id),
   zona               TEXT NOT NULL DEFAULT '',
   zona_norm          TEXT NOT NULL DEFAULT '',
+  municipio          TEXT NOT NULL DEFAULT '',
   programa_nacional  TEXT NOT NULL DEFAULT 'Ninguno',
   anio               INTEGER NOT NULL,
   -- Trimestre al que pertenece la actividad (1..4). Es la categoría que se elige al
@@ -210,6 +211,10 @@ def _migrar(con: sqlite3.Connection) -> None:
     if "mapa_lat" not in act_cols:
         con.execute("ALTER TABLE actividades ADD COLUMN mapa_lat REAL")
         con.execute("ALTER TABLE actividades ADD COLUMN mapa_lon REAL")
+
+    # v3.7: municipio de Yucatán (nivel 1 de la ubicación; la zona/sitio es el detalle).
+    if "municipio" not in act_cols:
+        con.execute("ALTER TABLE actividades ADD COLUMN municipio TEXT NOT NULL DEFAULT ''")
 
     # v3.5: coordenadas de cada zona para el mapa del informe.
     zona_cols = {f["name"] for f in con.execute("PRAGMA table_info(zonas)")}

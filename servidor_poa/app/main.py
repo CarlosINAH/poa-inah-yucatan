@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, consolidado, fotos as fotos_mod, importador, mapas, pdf
+from . import auth, consolidado, fotos as fotos_mod, importador, lugares, mapas, pdf
 from .db import (FOTOS_DIR, PROGRAMAS_NACIONALES, TRIMESTRES, ahora, conectar,
                  crear_esquema, norm)
 
@@ -317,8 +317,8 @@ def nueva_form(request: Request, anio: int = 0, trimestre: int = 0,
         return RedirectResponse("/registrar", status_code=303)
     # `act` debe traer TODOS los campos que la plantilla lee: al venir del paso 1 sólo
     # se conoce el periodo, el resto va en blanco pero tiene que existir.
-    vacia = {c: "" for c in ("titulo", "zona", "fechas_ejecucion", "observaciones",
-                             "objetivo")}
+    vacia = {c: "" for c in ("titulo", "zona", "municipio", "fechas_ejecucion",
+                             "observaciones", "objetivo")}
     vacia.update({"id": None, "catalogo_id": 0, "responsable_id": None,
                   "programa_nacional": "Ninguno", "planeacion": "Si",
                   "planeado": 1, "realizado": 1, "mapa_lat": None, "mapa_lon": None,
@@ -330,6 +330,8 @@ def nueva_form(request: Request, anio: int = 0, trimestre: int = 0,
         "responsables": consolidado.responsables(con),
         "programas": PROGRAMAS_NACIONALES,
         "zonas": consolidado.zonas_usadas(con),
+        "municipios": lugares.MUNICIPIOS_YUCATAN,
+        "comisarias": lugares.COMISARIAS,
         "trimestres": TRIMESTRES,
         "anio_defecto": anio,
     })
@@ -349,6 +351,7 @@ def _leer_form_actividad(datos: dict) -> dict:
         "titulo": (datos.get("titulo") or "").strip(),
         "catalogo_id": int(datos.get("catalogo_id") or 0),
         "zona": (datos.get("zona") or "").strip(),
+        "municipio": (datos.get("municipio") or "").strip(),
         "programa_nacional": (datos.get("programa_nacional") or "Ninguno").strip(),
         "anio": int(datos.get("anio") or 0),
         "trimestre": trimestre if trimestre in (1, 2, 3, 4) else 0,
@@ -380,6 +383,8 @@ async def crear(request: Request, u: sqlite3.Row = Depends(exigir_sesion),
             "responsables": consolidado.responsables(con),
             "programas": PROGRAMAS_NACIONALES,
             "zonas": consolidado.zonas_usadas(con),
+            "municipios": lugares.MUNICIPIOS_YUCATAN,
+            "comisarias": lugares.COMISARIAS,
             "trimestres": TRIMESTRES,
             "anio_defecto": consolidado.anio_por_defecto(con),
         })
@@ -445,6 +450,8 @@ def editar_form(request: Request, act_id: int, u: sqlite3.Row = Depends(exigir_s
         "responsables": consolidado.responsables(con),
         "programas": PROGRAMAS_NACIONALES,
         "zonas": consolidado.zonas_usadas(con),
+        "municipios": lugares.MUNICIPIOS_YUCATAN,
+        "comisarias": lugares.COMISARIAS,
         "trimestres": TRIMESTRES,
         "anio_defecto": act["anio"],
     })
@@ -708,6 +715,24 @@ def api_mapa(zona: str = "", pin: str = "", u: sqlite3.Row = Depends(exigir_sesi
         raise HTTPException(404, "No se pudo ubicar.")
     return Response(ruta.read_bytes(), media_type="image/png",
                     headers={"Cache-Control": "private, max-age=600"})
+
+
+@app.get("/api/buscar-lugar")
+def api_buscar_lugar(q: str = "", municipio: str = "",
+                     u: sqlite3.Row = Depends(exigir_sesion)):
+    """Busca lugares por nombre en OpenStreetMap para ubicar el punto en el mapa.
+
+    Si viene `municipio`, se acota la búsqueda a ese municipio de Yucatán (así el
+    resultado cae dentro del municipio elegido). Devuelve hasta 6 candidatos con
+    nombre y coordenadas. Best-effort: [] si no hay internet o el servicio falla.
+    """
+    consulta = (q or "").strip()
+    muni = (municipio or "").strip()
+    if muni and consulta:
+        consulta = f"{consulta}, {muni}, Yucatán, México"
+    elif muni:
+        consulta = f"{muni}, Yucatán, México"
+    return JSONResponse(mapas.buscar_lugares(consulta))
 
 
 @app.get("/api/catalogo/{cat_id}")

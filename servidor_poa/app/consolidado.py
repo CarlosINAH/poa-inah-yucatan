@@ -13,7 +13,7 @@ from datetime import date
 from .db import ahora, norm
 
 CAMPOS_ACTIVIDAD = (
-    "titulo", "catalogo_id", "zona", "programa_nacional", "anio", "trimestre",
+    "titulo", "catalogo_id", "zona", "municipio", "programa_nacional", "anio", "trimestre",
     "planeado_anual",
     "plan_t1", "plan_t2", "plan_t3", "plan_t4",
     "inf_t1", "inf_t2", "inf_t3", "inf_t4",

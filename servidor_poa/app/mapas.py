@@ -138,6 +138,40 @@ def _geocodificar(con: sqlite3.Connection, zona: str, clave: str):
     return lat, lon
 
 
+def buscar_lugares(consulta: str, limite: int = 6) -> list[dict]:
+    """Busca lugares por nombre en OpenStreetMap (Nominatim) y devuelve candidatos.
+
+    Cada candidato: {'nombre': str, 'lat': float, 'lon': float}. Sesgado a México y a
+    Yucatán. Best-effort: si no hay internet o el servicio falla, devuelve []. Se usa
+    para el buscador del formulario y para centrar el mapa en el municipio elegido.
+    """
+    consulta = (consulta or "").strip()
+    if len(consulta) < 3:
+        return []
+    params = urllib.parse.urlencode({
+        "q": consulta, "format": "json", "limit": max(1, min(limite, 10)),
+        "countrycodes": "mx", "accept-language": "es",
+    })
+    url = "https://nominatim.openstreetmap.org/search?" + params
+    try:
+        peticion = urllib.request.Request(url, headers={"User-Agent": _UA})
+        with urllib.request.urlopen(peticion, timeout=_TIMEOUT) as r:
+            import json
+            datos = json.load(r)
+    except Exception:
+        return []
+    salida = []
+    for d in datos:
+        try:
+            salida.append({
+                "nombre": d.get("display_name", "").strip(),
+                "lat": float(d["lat"]), "lon": float(d["lon"]),
+            })
+        except (KeyError, ValueError):
+            continue
+    return salida
+
+
 def _tesela_fraccional(lat: float, lon: float, z: int) -> tuple[float, float]:
     """(x, y) de tesela en coordenadas fraccionales (Web Mercator)."""
     n = 2 ** z

@@ -158,69 +158,9 @@
   const escapar = (s) => String(s ?? '').replace(/[&<>"']/g,
     c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  /* --------------------------- la zona que ya viene escrita dentro del título
-
-     Nadie llenaba «Zona / Sitio»: el sitio se escribe dentro del título
-     («…nichos pintados en Mayapán»). En vez de pedir que lo teclee otra vez, se
-     le ofrece lo que él mismo ya escribió. Es una sugerencia: si se equivoca, la
-     ignora. No hay catálogo oficial de zonas, así que no se inventa ninguna. */
-  const inZona = $('#zonaSitio');
-  const sugZona = $('#sugerenciaZona');
-  if (inZona && sugZona && $('#titulo')) {
-    const NOMBRE = '[A-ZÁÉÍÓÚÑ][\\wáéíóúñ]*';
-    const FRASE = `${NOMBRE}(?:\\s+(?:de\\s+|del\\s+|la\\s+|las\\s+|los\\s+)?${NOMBRE})*`;
-    // Ni el artículo ni «ZA»/«Zona Arqueológica» son parte del nombre del sitio.
-    const ART = '(?:el\\s+|la\\s+|las\\s+|los\\s+)?(?:ZA\\s+|Zona\\s+Arqueológica\\s+)?';
-    const PATRONES = [
-      // «… en Mayapán», «… en la Iglesia de San Juan», «Visita a la ZA Chichén Itzá»
-      new RegExp(`\\b(?:en|a)\\s+${ART}(${FRASE})`, 'g'),
-      // «Restauración de ancla histórica – Progreso»
-      new RegExp(`[–—-]\\s*(${FRASE})\\s*$`, 'g'),
-      // «Intervención de remoción de graffitis (Gotas Doradas)»
-      new RegExp(`\\((${FRASE})\\)`, 'g'),
-      // «… de la colección de Xuenkal» (el sitio cierra el título)
-      new RegExp(`\\bde\\s+(${FRASE})\\s*$`, 'g'),
-    ];
-
-    const candidata = (titulo) => {
-      for (const re of PATRONES) {
-        re.lastIndex = 0;
-        let m, ultima = null;
-        // La última coincidencia: el sitio suele ir al final del título.
-        while ((m = re.exec(titulo)) !== null) ultima = m[1];
-        if (ultima) {
-          const limpia = ultima.trim().replace(/\s+/g, ' ');
-          if (limpia.length >= 4 && limpia.length <= 60) return limpia;
-        }
-      }
-      return null;
-    };
-
-    const proponer = () => {
-      // Sólo se ofrece si la persona no escribió ya su zona: no se pisa lo suyo.
-      if (inZona.value.trim()) { sugZona.hidden = true; return; }
-      const z = candidata($('#titulo').value || '');
-      if (!z) { sugZona.hidden = true; return; }
-      sugZona.innerHTML = `¿La zona o sitio es <b>${escapar(z)}</b>?
-        <button type="button" class="btn sm" data-usar-zona>Sí, usarla</button>`;
-      sugZona.hidden = false;
-    };
-
-    sugZona.addEventListener('click', (e) => {
-      if (!e.target.closest('[data-usar-zona]')) return;
-      inZona.value = sugZona.querySelector('b').textContent;
-      sugZona.hidden = true;
-      inZona.focus();
-    });
-
-    let tZona;
-    $('#titulo').addEventListener('input', () => {
-      clearTimeout(tZona);
-      tZona = setTimeout(proponer, 450);
-    });
-    inZona.addEventListener('input', proponer);
-    proponer();
-  }
+  /* La ubicación ya no se adivina del título (antes sugería «¿La zona o sitio es X?»
+     y se equivocaba, p. ej. tomaba «Cerámica» del título). Ahora se captura por niveles
+     —Municipio → comisaría/localidad → punto en el mapa— en el formulario. */
 
   /* ------------------------------------------- fotos: arrastrar y reducir */
   const LADO_MAXIMO = 2200;

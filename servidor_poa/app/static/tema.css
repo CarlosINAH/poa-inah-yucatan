@@ -670,16 +670,25 @@
     }
     @media (max-width: 560px) { .trimestres-grid { grid-template-columns: 1fr; } }
 
-    /* Sugerencia de zona tomada del propio título */
-    .sug-zona {
-      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-      margin-top: 6px; padding: 8px 10px;
-      font-size: 12.5px; color: var(--ink);
-      border: 1px dashed rgba(var(--accent-rgb), .45);
-      border-radius: var(--r-sm);
-      background: rgba(var(--accent-rgb), .08);
+    /* Buscador de lugar (OpenStreetMap) para fijar el punto en el mapa */
+    .buscar-lugar { display: flex; gap: 8px; margin-bottom: 8px; }
+    .buscar-lugar input[type="search"] { flex: 1; }
+    .buscar-lugar .btn.sm { flex: none; }
+    .resultados-lugar {
+      list-style: none; margin: 0 0 10px; padding: 6px;
+      max-height: 190px; overflow: auto;
+      border: 1px solid var(--glass-border-soft); border-radius: var(--r-sm);
+      background: rgba(var(--accent-rgb), .06);
     }
-    .sug-zona .btn.sm { flex: none; }
+    .resultados-lugar li { margin: 0; }
+    .resultados-lugar li.vacio { padding: 8px 10px; font-size: 12.5px; color: var(--ink-soft); }
+    .resultados-lugar button {
+      display: block; width: 100%; text-align: left; cursor: pointer;
+      padding: 8px 10px; font: inherit; font-size: 12.5px; color: var(--ink);
+      background: transparent; border: 0; border-radius: var(--r-sm);
+    }
+    .resultados-lugar button:hover,
+    .resultados-lugar button:focus-visible { background: rgba(var(--accent-rgb), .16); }
 
     /* Mapa interactivo para fijar la ubicación (Leaflet) */
     .mapa-picker {
