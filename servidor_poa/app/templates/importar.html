@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block titulo %}Importar histórico{% endblock %}
+{% block encabezado %}Importar un POA histórico{% endblock %}
+{% block subtitulo %}Sube un Excel de un año anterior y la plataforma carga sus actividades y fotos.{% endblock %}
+
+{% block contenido %}
+<section class="card">
+  <p class="muted">
+    Usa el mismo formato del POA trimestral (hoja <b>Actividades</b>). Se leen las
+    actividades y las <b>fotos que van dentro de las celdas</b>. Puedes subir el mismo
+    archivo dos veces sin miedo: si una actividad ya existe para ese año, se salta.
+  </p>
+
+  <form method="post" action="/admin/importar" enctype="multipart/form-data"
+        style="margin-top:16px;display:flex;flex-direction:column;gap:16px;max-width:520px">
+    <div>
+      <label for="archivo"><b>Archivo Excel (.xlsx)</b></label><br>
+      <input type="file" id="archivo" name="archivo" accept=".xlsx" required
+             style="margin-top:6px">
+    </div>
+    <div>
+      <label for="anio"><b>Año</b></label><br>
+      <span class="muted" style="font-size:12px">
+        Déjalo vacío para adivinarlo del nombre del archivo (p. ej. «POA 2024.xlsx»).
+      </span><br>
+      <input type="number" id="anio" name="anio" min="2000" max="2100"
+             placeholder="2024" style="margin-top:6px;width:140px">
+    </div>
+    <div>
+      <button class="btn" type="submit">Importar</button>
+    </div>
+  </form>
+</section>
+
+{% if resultado %}
+<section class="card" style="margin-top:16px">
+  <h2 style="margin-top:0">Resultado</h2>
+
+  {% if resultado.error %}
+  <p style="color:var(--peligro,#c0392b)"><b>No se pudo importar:</b> {{ resultado.error }}</p>
+  {% else %}
+  <p>
+    Año importado: <b>{{ resultado.anio }}</b><br>
+    Actividades creadas: <b>{{ resultado.creadas }}</b><br>
+    {% if resultado.saltadas %}Ya existían (se saltaron): <b>{{ resultado.saltadas }}</b><br>{% endif %}
+    Fotos importadas: <b>{{ resultado.fotos }}</b>
+  </p>
+  {% if resultado.creadas %}
+  <p><a class="btn sm" href="/tablero?anio={{ resultado.anio }}">Ver las actividades del {{ resultado.anio }}</a></p>
+  {% endif %}
+
+  {% if resultado.avisos %}
+  <h3>Revisar ({{ resultado.avisos|length }})</h3>
+  <p class="muted" style="font-size:12px">
+    Estas filas necesitan atención: no se pudieron identificar o quedaron incompletas.
+  </p>
+  <ul style="font-size:13px;line-height:1.5">
+    {% for a in resultado.avisos %}
+    <li>{{ a }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <p class="muted" style="font-size:12px;margin-top:12px">
+    La columna Zona / Sitio queda vacía: el Excel no la tiene. Se llena desde la
+    plataforma, en cada actividad.
+  </p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

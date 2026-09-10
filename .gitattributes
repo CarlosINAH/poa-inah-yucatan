@@ -1,0 +1,5 @@
+# Los scripts de shell DEBEN ir con saltos de línea Unix (LF): si git los guarda
+# con CRLF de Windows, el contenedor (Fly.io/Docker) no encuentra /bin/sh y la
+# máquina crashea en bucle. Esto lo fuerza sin importar el sistema de quien clone.
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf

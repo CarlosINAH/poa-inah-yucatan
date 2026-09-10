@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, consolidado, fotos as fotos_mod, mapas, pdf
+from . import auth, consolidado, fotos as fotos_mod, importador, mapas, pdf
 from .db import (FOTOS_DIR, PROGRAMAS_NACIONALES, TRIMESTRES, ahora, conectar,
                  crear_esquema, norm)
 
@@ -805,3 +805,48 @@ def alternar_activo(request: Request, uid: int, u: sqlite3.Row = Depends(exigir_
     con.execute("UPDATE usuarios SET activo = 1 - activo WHERE id = ?", (uid,))
     con.commit()
     return RedirectResponse("/admin/usuarios", status_code=303)
+
+
+# ------------------------------------------------------- importar históricos (Excel)
+
+@app.get("/admin/importar", response_class=HTMLResponse)
+def importar_form(request: Request, u: sqlite3.Row = Depends(exigir_admin)):
+    return vista(request, "importar.html", {"u": u, "resultado": None})
+
+
+@app.post("/admin/importar", response_class=HTMLResponse)
+async def importar_post(request: Request, archivo: UploadFile,
+                        anio: str = Form(""),
+                        u: sqlite3.Row = Depends(exigir_admin),
+                        con: sqlite3.Connection = Depends(bd)):
+    def pantalla(resultado):
+        return vista(request, "importar.html", {"u": u, "resultado": resultado})
+
+    nombre = archivo.filename or ""
+    if not nombre.lower().endswith(".xlsx"):
+        avisar(request, "El archivo debe ser un Excel .xlsx (el mismo formato del POA trimestral).")
+        return RedirectResponse("/admin/importar", status_code=303)
+
+    # Año: lo que escriba la coordinación manda; si lo deja vacío, se adivina del nombre.
+    anio_texto = (anio or "").strip()
+    if anio_texto:
+        try:
+            anio_final = int(anio_texto)
+        except ValueError:
+            avisar(request, "El año debe ser un número, por ejemplo 2024.")
+            return RedirectResponse("/admin/importar", status_code=303)
+    else:
+        anio_final = importador.detectar_anio(nombre) or 0
+    if not (2000 <= anio_final <= 2100):
+        avisar(request, "No pude determinar el año. Escríbelo en el campo (por ejemplo 2024).")
+        return RedirectResponse("/admin/importar", status_code=303)
+
+    contenido = await archivo.read()
+    if len(contenido) > importador.MAX_BYTES_ARCHIVO:
+        resultado = importador.Resultado(
+            anio=anio_final,
+            error=f"El archivo pesa más de {importador.MAX_BYTES_ARCHIVO // (1024 * 1024)} MB.")
+        return pantalla(resultado)
+
+    resultado = importador.importar(con, contenido, anio_final)
+    return pantalla(resultado)

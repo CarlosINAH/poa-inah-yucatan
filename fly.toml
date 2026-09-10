@@ -10,7 +10,7 @@
 # El volumen guarda la base de datos y las fotos; sobrevive a cada actualización.
 
 app = "poa-inah-yucatan"          # ← CÁMBIALO por un nombre único
-primary_region = "qro"            # Querétaro, México (lo más cercano a Yucatán)
+primary_region = "dfw"            # Dallas, Texas (la región Fly más cercana a Yucatán)
 
 [build]
   dockerfile = "Dockerfile"

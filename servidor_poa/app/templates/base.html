@@ -47,7 +47,8 @@
         <a class="tab-btn {% if ruta == '/consolidado' %}active{% endif %}" href="/consolidado">Consolidado</a>
         {% endif %}
         {% if u.es_admin %}
-        <a class="tab-btn {% if ruta.startswith('/admin') or ruta == '/mi-pin' %}active{% endif %}" href="/admin/usuarios">Personal</a>
+        <a class="tab-btn {% if ruta.startswith('/admin/usuarios') or ruta == '/mi-pin' %}active{% endif %}" href="/admin/usuarios">Personal</a>
+        <a class="tab-btn {% if ruta.startswith('/admin/importar') %}active{% endif %}" href="/admin/importar">Importar</a>
         {% endif %}
       </nav>
 
