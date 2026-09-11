@@ -38,6 +38,7 @@ PERSONAL = [
     ("Luz Fabiola González Juárez", "Restauradora", "Empleados", 0, 0),
     ("Helga Zelezny Geovannini Acuña", "Arqueóloga", "Empleados", 0, 0),
     ("Gerardo Magallón Calderón", "Restaurador", "Empleados", 0, 0),
+    ("Judith Atcire Martínez Sarabi", "", "Empleados", 0, 0),
 ]
 
 
