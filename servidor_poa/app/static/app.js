@@ -170,7 +170,11 @@
   /* Reduce en el navegador para no mandar 50 MB por la red interna.
      El servidor vuelve a procesar de todas formas: esto es velocidad, no confianza. */
   async function reducir(file) {
-    if (!file.type.startsWith('image/')) return null;
+    // Se acepta por tipo MIME o por extensión: algunos formatos (HEIC de iPhone) llegan
+    // con file.type vacío y no hay que descartarlos; el servidor los convierte a JPG.
+    const esImagen = file.type.startsWith('image/') ||
+      /\.(jpe?g|png|gif|webp|bmp|tiff?|heic|heif|avif)$/i.test(file.name);
+    if (!esImagen) return null;
     if (file.size > MAX_BYTES) {
       alert(`«${file.name}» pesa ${(file.size / 1048576).toFixed(0)} MB y el máximo son 50 MB.`);
       return null;

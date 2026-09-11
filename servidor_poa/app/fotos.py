@@ -15,6 +15,15 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .db import FOTOS_DIR
 
+# Soporte para fotos de iPhone (HEIC/HEIF) y AVIF: registra los decodificadores en
+# Pillow. Es opcional: si el paquete no está, se siguen aceptando JPG/PNG/WEBP/… y sólo
+# fallan los HEIC. Cualquier formato legible se reprocesa a JPEG más abajo.
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except Exception:  # noqa: BLE001 - el soporte HEIC es un extra, no un requisito
+    pass
+
 MAX_BYTES_ENTRADA = 50 * 1024 * 1024   # lo que el usuario puede subir: 50 MB
 LADO_MAXIMO = 2200                     # px del lado mayor, versión para ver en pantalla
 CALIDAD_JPEG = 82
@@ -65,7 +74,8 @@ def procesar(datos: bytes, nombre_original: str) -> dict:
             impresion, _, _ = _codificar(img, LADO_IMPRESION, CALIDAD_IMPRESION)
     except (UnidentifiedImageError, OSError, ValueError) as exc:
         raise FotoInvalida(
-            f"No pude leer «{nombre_original}» como imagen. ¿Es un JPG o PNG?"
+            f"No pude leer «{nombre_original}» como imagen. Acepto JPG, PNG, WEBP, "
+            "GIF, BMP, TIFF y HEIC/HEIF (fotos de iPhone)."
         ) from exc
 
     archivo = _nombre_archivo()
