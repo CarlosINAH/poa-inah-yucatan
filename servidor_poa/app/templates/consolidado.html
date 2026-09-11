@@ -9,12 +9,8 @@
 {% block acciones %}
 {% if grupos %}
 <a class="btn primary sm" target="_blank"
-   href="/pdf/consolidado?anio={{ anio }}&trimestre={{ trimestre }}&agrupar={{ agrupar }}&fotos=1">
-  PDF con fotos
-</a>
-<a class="btn sm" target="_blank"
-   href="/pdf/consolidado?anio={{ anio }}&trimestre={{ trimestre }}&agrupar={{ agrupar }}&fotos=0">
-  PDF sin fotos
+   href="/pdf/consolidado?anio={{ anio }}&trimestre={{ trimestre }}&agrupar={{ agrupar }}">
+  Descargar resumen (PDF)
 </a>
 {% endif %}
 {% endblock %}

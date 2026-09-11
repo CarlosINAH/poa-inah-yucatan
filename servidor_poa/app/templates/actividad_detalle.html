@@ -4,7 +4,9 @@
 {% block subtitulo %}{{ act.zona or 'Sin zona' }} · {{ act.eje }} · {{ act.anio }}{% endblock %}
 
 {% block acciones %}
+{% if esta_autorizada or u.es_admin %}
 <a class="btn sm" href="/pdf/actividad/{{ act.id }}" target="_blank">Ver PDF</a>
+{% endif %}
 {% if puede_editar %}<a class="btn sm" href="/actividades/{{ act.id }}/editar">Editar ficha</a>{% endif %}
 {% endblock %}
 
@@ -146,6 +148,67 @@
           <button class="btn primary" type="submit">Agregar</button>
         </form>
       </div>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <span class="section-num">4</span>
+        <div>
+          <h2>Firma y autorización</h2>
+          <p class="section-desc">El PDF se habilita cuando el responsable de proyecto
+            firma la actividad.</p>
+        </div>
+      </div>
+
+      {% if esta_autorizada %}
+      <div class="edit-banner">
+        <div>
+          <b>✔ Autorizada</b>
+          <div class="section-desc">Firmada por
+            <b>{{ act.autorizada_por_nombre or 'el responsable' }}</b>.</div>
+        </div>
+        <a class="btn primary" href="/pdf/actividad/{{ act.id }}" target="_blank">Ver PDF firmado</a>
+      </div>
+      {% if puede_autorizar %}
+      <form method="post" action="/actividades/{{ act.id }}/revocar-firma" style="margin-top:10px"
+            onsubmit="return confirm('¿Revocar la autorización? El PDF dejará de estar disponible hasta firmar de nuevo.')">
+        <button class="btn sm" type="submit">Revocar autorización</button>
+      </form>
+      {% endif %}
+
+      {% else %}
+        {% if act.responsable_nombre %}
+        <p class="mini">Responsable de proyecto: <b>{{ act.responsable_nombre }}</b></p>
+        {% else %}
+        <p class="mini">Esta actividad no tiene responsable de proyecto asignado.
+          {% if puede_editar %}<a href="/actividades/{{ act.id }}/editar">Asígnalo en Editar ficha</a>.{% endif %}</p>
+        {% endif %}
+
+        {% if puede_autorizar %}
+          {% if tengo_firma %}
+          <form method="post" action="/actividades/{{ act.id }}/autorizar" style="margin-top:10px">
+            <button class="btn primary" type="submit">Firmar y autorizar</button>
+          </form>
+          {% else %}
+          <p class="mini" style="margin-top:10px">Para firmar, registra primero tu firma en
+            <a href="/mi-firma">Mi firma</a>.</p>
+          {% endif %}
+        {% elif soy_participante %}
+          {% if act.autorizacion_solicitada %}
+          <p class="mini" style="margin-top:10px">✓ Solicitud enviada. En espera de que
+            <b>{{ act.responsable_nombre or 'el responsable' }}</b> firme.</p>
+          {% endif %}
+          {% if act.responsable_nombre %}
+          <form method="post" action="/actividades/{{ act.id }}/solicitar-firma" style="margin-top:10px">
+            <button class="btn {% if not act.autorizacion_solicitada %}primary{% endif %}" type="submit">
+              {% if act.autorizacion_solicitada %}Volver a solicitar{% else %}Solicitar firma del responsable{% endif %}
+            </button>
+          </form>
+          {% endif %}
+        {% else %}
+        <p class="mini" style="margin-top:10px">Pendiente de firma del responsable de proyecto.</p>
+        {% endif %}
       {% endif %}
     </section>
   </div>

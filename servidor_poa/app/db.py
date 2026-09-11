@@ -16,6 +16,9 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATOS_DIR = BASE_DIR / "datos"
 FOTOS_DIR = DATOS_DIR / "fotos"
+# Firmas dibujadas por cada persona (PNG con fondo transparente). Se guardan una vez y
+# se reutilizan en cada hoja del PDF donde esa persona firma como ejecutante o responsable.
+FIRMAS_DIR = DATOS_DIR / "firmas"
 DB_PATH = DATOS_DIR / "poa.db"
 
 ESQUEMA = """
@@ -34,6 +37,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   es_responsable         INTEGER NOT NULL DEFAULT 0,
   es_admin               INTEGER NOT NULL DEFAULT 0,
   pin_hash               TEXT NOT NULL DEFAULT '',
+  firma                  TEXT NOT NULL DEFAULT '',   -- PNG de la firma dibujada (nombre de archivo en firmas/)
   activo                 INTEGER NOT NULL DEFAULT 1,
   creado_en              TEXT NOT NULL
 );
@@ -94,6 +98,11 @@ CREATE TABLE IF NOT EXISTS actividades (
   observaciones      TEXT NOT NULL DEFAULT '',
   fechas_ejecucion   TEXT NOT NULL DEFAULT '',
   responsable_id     INTEGER REFERENCES usuarios(id),
+  -- Autorización por firma: el empleado solicita, el responsable de proyecto autoriza.
+  -- El PDF de la actividad sólo se puede ver cuando está autorizada.
+  autorizacion_solicitada TEXT NOT NULL DEFAULT '',   -- fecha en que el empleado la pidió
+  autorizada_en      TEXT NOT NULL DEFAULT '',         -- fecha en que el responsable firmó
+  autorizada_por     INTEGER REFERENCES usuarios(id),  -- responsable que autorizó
   creada_por         INTEGER NOT NULL REFERENCES usuarios(id),
   creada_en          TEXT NOT NULL,
   actualizada_en     TEXT NOT NULL
@@ -165,6 +174,7 @@ def norm(texto: str | None) -> str:
 def conectar() -> sqlite3.Connection:
     DATOS_DIR.mkdir(parents=True, exist_ok=True)
     FOTOS_DIR.mkdir(parents=True, exist_ok=True)
+    FIRMAS_DIR.mkdir(parents=True, exist_ok=True)
     # check_same_thread=False porque las rutas async abren la conexión en un hilo del
     # pool y la usan en el event loop. Es seguro: cada petición tiene la suya y no se
     # comparte entre peticiones (ver la dependencia bd() en main.py).
@@ -192,6 +202,11 @@ def _migrar(con: sqlite3.Connection) -> None:
     # del calendario de Outlook con cada persona de la Sección.
     if "email" not in columnas:
         con.execute("ALTER TABLE usuarios ADD COLUMN email TEXT NOT NULL DEFAULT ''")
+
+    # v3.9: firma dibujada por cada persona, para estamparla en cada hoja del informe.
+    if "firma" not in columnas:
+        con.execute("ALTER TABLE usuarios ADD COLUMN firma TEXT NOT NULL DEFAULT ''")
+
     for obsoleta in ("password_hash", "debe_cambiar_password"):
         if obsoleta in columnas:
             con.execute(f"ALTER TABLE usuarios DROP COLUMN {obsoleta}")
@@ -222,6 +237,12 @@ def _migrar(con: sqlite3.Connection) -> None:
     # v3.8: actividad fuera de Yucatán (otro estado o país); el lugar se escribe a mano.
     if "fuera_estado" not in act_cols:
         con.execute("ALTER TABLE actividades ADD COLUMN fuera_estado INTEGER NOT NULL DEFAULT 0")
+
+    # v3.9: autorización por firma (el empleado solicita, el responsable firma y autoriza).
+    if "autorizacion_solicitada" not in act_cols:
+        con.execute("ALTER TABLE actividades ADD COLUMN autorizacion_solicitada TEXT NOT NULL DEFAULT ''")
+        con.execute("ALTER TABLE actividades ADD COLUMN autorizada_en TEXT NOT NULL DEFAULT ''")
+        con.execute("ALTER TABLE actividades ADD COLUMN autorizada_por INTEGER REFERENCES usuarios(id)")
 
     # v3.5: coordenadas de cada zona para el mapa del informe.
     zona_cols = {f["name"] for f in con.execute("PRAGMA table_info(zonas)")}

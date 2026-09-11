@@ -15,9 +15,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, consolidado, fotos as fotos_mod, importador, lugares, mapas, pdf
-from .db import (FOTOS_DIR, PROGRAMAS_NACIONALES, TRIMESTRES, ahora, conectar,
-                 crear_esquema, norm)
+from . import (auth, consolidado, firmas as firmas_mod, fotos as fotos_mod,
+               importador, lugares, mapas, pdf)
+from .db import (FIRMAS_DIR, FOTOS_DIR, PROGRAMAS_NACIONALES, TRIMESTRES, ahora,
+                 conectar, crear_esquema, norm)
 
 BASE = Path(__file__).resolve().parent
 app = FastAPI(title="Plataforma POA · Conservación · Centro INAH Yucatán")
@@ -255,6 +256,48 @@ def mi_pin(request: Request, actual: str = Form(...), nuevo: str = Form(...),
     return RedirectResponse("/tablero", status_code=303)
 
 
+@app.get("/mi-firma", response_class=HTMLResponse)
+def mi_firma_form(request: Request, u: sqlite3.Row = Depends(exigir_sesion)):
+    return vista(request, "mi_firma.html", {"u": u, "error": None})
+
+
+@app.post("/mi-firma", response_class=HTMLResponse)
+def mi_firma(request: Request, firma: str = Form(""),
+             u: sqlite3.Row = Depends(exigir_sesion),
+             con: sqlite3.Connection = Depends(bd)):
+    try:
+        archivo = firmas_mod.procesar(firma)
+    except firmas_mod.FirmaInvalida as exc:
+        return vista(request, "mi_firma.html", {"u": u, "error": str(exc)})
+    anterior = u["firma"]
+    con.execute("UPDATE usuarios SET firma = ? WHERE id = ?", (archivo, u["id"]))
+    con.commit()
+    if anterior and anterior != archivo:
+        firmas_mod.eliminar(anterior)   # el PNG viejo ya no lo usa nadie
+    avisar(request, "Tu firma quedó guardada. Aparecerá en cada hoja del informe que firmes.")
+    return RedirectResponse("/mi-firma", status_code=303)
+
+
+@app.post("/mi-firma/borrar")
+def borrar_firma(request: Request, u: sqlite3.Row = Depends(exigir_sesion),
+                 con: sqlite3.Connection = Depends(bd)):
+    if u["firma"]:
+        firmas_mod.eliminar(u["firma"])
+    con.execute("UPDATE usuarios SET firma = '' WHERE id = ?", (u["id"],))
+    con.commit()
+    avisar(request, "Se borró tu firma. Las hojas saldrán con la línea en blanco para firmar a mano.")
+    return RedirectResponse("/mi-firma", status_code=303)
+
+
+@app.get("/firma/{archivo}")
+def servir_firma(archivo: str, u: sqlite3.Row = Depends(exigir_sesion)):
+    ruta = (FIRMAS_DIR / Path(archivo).name).resolve()
+    if not ruta.is_relative_to(FIRMAS_DIR.resolve()) or not ruta.exists():
+        raise HTTPException(404, "Esa firma no existe.")
+    return Response(ruta.read_bytes(), media_type="image/png",
+                    headers={"Cache-Control": "private, max-age=600"})
+
+
 @app.post("/salir")
 def salir(request: Request):
     request.session.clear()
@@ -429,6 +472,11 @@ def detalle(request: Request, act_id: int, u: sqlite3.Row = Depends(exigir_sesio
         "puede_editar": consolidado.puede_editar(u, act),
         "puede_agregar": puede_agregar, "agregables": agregables,
         "max_fotos": fotos_mod.MAX_FOTOS_POR_PARTICIPACION,
+        # Autorización por firma: quién puede pedirla, quién puede firmarla y su estado.
+        "puede_autorizar": consolidado.puede_autorizar(u, act),
+        "esta_autorizada": consolidado.esta_autorizada(act),
+        "soy_participante": mi_parte is not None,
+        "tengo_firma": bool(u["firma"]),
     })
 
 
@@ -535,6 +583,104 @@ def eliminar_actividad(request: Request, act_id: int,
     con.commit()
     avisar(request, f"Se eliminó «{act['titulo']}» y sus fotos.")
     return RedirectResponse("/actividades", status_code=303)
+
+
+# ------------------------------------------------------- autorización por firma
+
+@app.post("/actividades/{act_id}/solicitar-firma")
+def solicitar_firma(request: Request, act_id: int, u: sqlite3.Row = Depends(exigir_sesion),
+                    con: sqlite3.Connection = Depends(bd)):
+    """El empleado pide al responsable que firme y autorice su actividad."""
+    act = consolidado.actividad(con, act_id)
+    if act is None:
+        raise HTTPException(404, "Esa actividad no existe.")
+    soy = con.execute("SELECT 1 FROM participaciones WHERE actividad_id = ? AND usuario_id = ?",
+                      (act_id, u["id"])).fetchone()
+    if not (soy or consolidado.puede_editar(u, act)):
+        raise HTTPException(403, "Sólo quien participa en la actividad puede solicitar su firma.")
+    if consolidado.esta_autorizada(act):
+        avisar(request, "Esa actividad ya está autorizada.")
+        return RedirectResponse(f"/actividades/{act_id}", status_code=303)
+    if not act["responsable_id"]:
+        avisar(request, "Primero asigna un responsable de proyecto a la actividad (Editar ficha).")
+        return RedirectResponse(f"/actividades/{act_id}", status_code=303)
+    if not u["firma"]:
+        avisar(request, "Antes de solicitar la firma, registra la tuya en «Mi firma».")
+        return RedirectResponse("/mi-firma", status_code=303)
+    consolidado.solicitar_autorizacion(con, act_id)
+    con.commit()
+    avisar(request, "Se solicitó la firma del responsable. Verás el PDF cuando la autorice.")
+    return RedirectResponse(f"/actividades/{act_id}", status_code=303)
+
+
+@app.post("/actividades/{act_id}/autorizar")
+def autorizar_una(request: Request, act_id: int, u: sqlite3.Row = Depends(exigir_sesion),
+                  con: sqlite3.Connection = Depends(bd)):
+    """El responsable de la actividad la firma y autoriza."""
+    act = consolidado.actividad(con, act_id)
+    if act is None:
+        raise HTTPException(404, "Esa actividad no existe.")
+    if not consolidado.puede_autorizar(u, act):
+        raise HTTPException(403, "Sólo el responsable de proyecto de esta actividad puede firmarla.")
+    if not u["firma"]:
+        avisar(request, "Registra tu firma en «Mi firma» antes de autorizar.")
+        return RedirectResponse("/mi-firma", status_code=303)
+    consolidado.autorizar(con, act_id, u["id"])
+    con.commit()
+    avisar(request, "Actividad autorizada con tu firma. Ya se puede ver el PDF.")
+    return RedirectResponse(f"/actividades/{act_id}", status_code=303)
+
+
+@app.post("/actividades/{act_id}/revocar-firma")
+def revocar_firma(request: Request, act_id: int, u: sqlite3.Row = Depends(exigir_sesion),
+                  con: sqlite3.Connection = Depends(bd)):
+    """Quita la autorización (el responsable o la coordinación); el PDF vuelve a ocultarse."""
+    act = consolidado.actividad(con, act_id)
+    if act is None:
+        raise HTTPException(404, "Esa actividad no existe.")
+    if not consolidado.puede_autorizar(u, act):
+        raise HTTPException(403, "Sólo el responsable de proyecto o la coordinación puede revocar.")
+    consolidado.revocar_autorizacion(con, act_id)
+    con.commit()
+    avisar(request, "Se revocó la autorización. El PDF deja de estar disponible hasta firmar de nuevo.")
+    return RedirectResponse(f"/actividades/{act_id}", status_code=303)
+
+
+@app.get("/autorizaciones", response_class=HTMLResponse)
+def autorizaciones(request: Request, u: sqlite3.Row = Depends(exigir_sesion),
+                   con: sqlite3.Connection = Depends(bd)):
+    """Bandeja del responsable: solicitudes de firma agrupadas por quién las pidió."""
+    grupos = consolidado.pendientes_para(con, u["id"])
+    return vista(request, "autorizaciones.html", {
+        "u": u, "grupos": grupos, "tengo_firma": bool(u["firma"]),
+        "trimestres": TRIMESTRES,
+    })
+
+
+@app.post("/autorizaciones/autorizar")
+async def autorizar_lote(request: Request, u: sqlite3.Row = Depends(exigir_sesion),
+                         con: sqlite3.Connection = Depends(bd)):
+    """El responsable firma y autoriza varias actividades de una sola vez."""
+    if not u["firma"]:
+        avisar(request, "Registra tu firma en «Mi firma» antes de autorizar.")
+        return RedirectResponse("/mi-firma", status_code=303)
+    ids = (await request.form()).getlist("act_ids")
+    n = 0
+    for sid in ids:
+        try:
+            aid = int(sid)
+        except (TypeError, ValueError):
+            continue
+        act = consolidado.actividad(con, aid)
+        if act and consolidado.puede_autorizar(u, act) and not consolidado.esta_autorizada(act):
+            consolidado.autorizar(con, aid, u["id"])
+            n += 1
+    con.commit()
+    if n:
+        avisar(request, f"Firmaste y autorizaste {n} actividad{'es' if n != 1 else ''}.")
+    else:
+        avisar(request, "No se autorizó ninguna actividad. Marca al menos una.")
+    return RedirectResponse("/autorizaciones", status_code=303)
 
 
 # ------------------------------------------------------------- participación
@@ -782,6 +928,26 @@ def pdf_consolidado(anio: int | None = None, trimestre: int = 0, agrupar: str = 
         "Content-Disposition": f'inline; filename="POA_consolidado_{anio}_{etiqueta}.pdf"'})
 
 
+@app.get("/pdf/mias")
+def pdf_mias(anio: int | None = None, trimestre: int = 0,
+             u: sqlite3.Row = Depends(exigir_sesion),
+             con: sqlite3.Connection = Depends(bd)):
+    """El PDF de las actividades que capturó quien lo pide: una hoja por actividad, con
+    su hoja de fotos, y firmadas. Cada quien descarga lo suyo."""
+    anio = anio or consolidado.anio_por_defecto(con)
+    trimestre = trimestre if trimestre in (1, 2, 3, 4) else 0
+    actividades = consolidado.actividades_de(con, u["id"], anio, trimestre)
+    # Sólo se muestran las actividades ya firmadas por su responsable.
+    actividades = [a for a in actividades if consolidado.esta_autorizada(a)]
+    if not actividades:
+        raise HTTPException(404, "Aún no tienes actividades autorizadas por el responsable "
+                                 "en ese periodo. El PDF se habilita cuando firman tus actividades.")
+    contenido = pdf.de_actividades(con, actividades, con_fotos=True)
+    etiqueta = f"T{trimestre}" if trimestre else "anual"
+    return Response(contenido, media_type="application/pdf", headers={
+        "Content-Disposition": f'inline; filename="POA_mis_actividades_{anio}_{etiqueta}.pdf"'})
+
+
 @app.get("/pdf/actividad/{act_id}")
 def pdf_actividad(act_id: int, u: sqlite3.Row = Depends(exigir_sesion),
                   con: sqlite3.Connection = Depends(bd)):
@@ -798,6 +964,11 @@ def pdf_actividad(act_id: int, u: sqlite3.Row = Depends(exigir_sesion),
         ).fetchone()
         if not parte:
             raise HTTPException(403, "Sólo puedes ver el PDF de tus propias actividades.")
+    # El PDF se habilita cuando el responsable firma y autoriza. La coordinación puede
+    # verlo antes (supervisión); el resto, sólo una vez autorizada.
+    if not consolidado.esta_autorizada(act) and not u["es_admin"]:
+        raise HTTPException(403, "El PDF estará disponible cuando el responsable de "
+                                 "proyecto firme y autorice esta actividad.")
     contenido = pdf.individual(con, act_id)
     return Response(contenido, media_type="application/pdf", headers={
         "Content-Disposition": f'inline; filename="POA_actividad_{act_id}.pdf"'})

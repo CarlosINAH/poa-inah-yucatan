@@ -168,6 +168,30 @@ está bien comentado y es coherente.
 
 ---
 
+## Observaciones atendidas — Firmas, autorización e informe por hoja ✅ (v3.9)
+- [x] **Firma dibujada, guardada y borrable**: cada persona traza su firma en `/mi-firma`
+      (lienzo táctil y de mouse, `mi_firma.html` + `firmas.py`). Se guarda como PNG
+      transparente (columna `usuarios.firma`) y **el propio usuario la puede borrar**.
+- [x] **Autorización por firma (solicitar → firmar)**: el empleado pide la firma de su
+      actividad (`POST /actividades/{id}/solicitar-firma`); el responsable de proyecto la ve
+      en su bandeja **Autorizaciones** (`/autorizaciones`, agrupadas por quién las pidió:
+      «Fulano solicitó firma de N actividades») y firma/autoriza una o varias de golpe. Cada
+      actividad usa su propio responsable, así que un reporte puede llevar varias firmas de
+      responsables distintos. Columnas nuevas en `actividades`: `autorizacion_solicitada`,
+      `autorizada_en`, `autorizada_por`.
+- [x] **PDF sólo visible y sólo si está firmado**: `GET /pdf/actividad/{id}` y `/pdf/mias`
+      exigen que el responsable haya autorizado (la coordinación puede verlo antes, para
+      supervisar). No hay descarga por botón: se abre en el navegador para visualizar.
+      La hoja muestra la firma del **ejecutante** y la del **responsable**, con la leyenda
+      «Autorizada por X el …».
+- [x] **Una actividad por hoja + hoja de fotos**: `pdf.py` maqueta cada actividad como hoja
+      de datos (periodo, qué hizo, ubicación, resumen y firmas) y, en seguida, una hoja aparte
+      con las fotografías (también firmada). Tras la hoja de fotos salta de página a la
+      siguiente actividad. Orden: **Periodo → Qué hiciste → Fotos → Firma**.
+- [x] **Consolidado = resumen**: `GET /pdf/consolidado` entrega sólo el resumen ejecutivo de
+      la Sección (totales por zona/eje y firmas de coordinación), sin volcar el detalle de
+      todas las actividades.
+
 ### Sugerencia de ritmo (para que alcancen los tokens)
 Una etapa por sesión. Empezar por la **Etapa 0** (rápida y sin riesgo) y la **Etapa 1**
 (la que más valor da: a partir de ahí todo lo demás se hace con red). Las etapas 3–6 son

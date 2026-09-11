@@ -123,4 +123,25 @@ Comparte la URL del túnel con las 14 personas. Listo: la plataforma está en l�
 
 El repo también trae `fly.toml` para desplegar en **Fly.io** (que por debajo usa el
 mismo `Dockerfile`). Los datos irían a un volumen en la nube en vez de quedarse en el
-INAH. Pídeme la guía si llegas a necesitarla.
+INAH.
+
+### Despliegue automático con GitHub Actions
+
+El workflow `.github/workflows/desplegar.yml` deja el despliegue en un solo paso.
+
+1. **Una sola vez**, crea el token de Fly y guárdalo como secreto de GitHub:
+   ```bash
+   fly tokens create deploy -a poa-inah-yucatan
+   ```
+   Copia el token y pégalo en GitHub → *Settings → Secrets and variables → Actions*
+   → **New repository secret** con el nombre `FLY_API_TOKEN`.
+2. A partir de ahí, la plataforma se actualiza en línea:
+   - **automático** al hacer *merge* a `main`, o
+   - **a mano** desde la pestaña *Actions → «Desplegar a Fly.io» → Run workflow*.
+
+El primer despliegue exige que el app y el volumen ya existan en Fly (ver las
+instrucciones al inicio de `fly.toml`). La migración de la base corre sola al arrancar
+(`crear_esquema`), así que las columnas nuevas de firmas se crean sin borrar datos.
+
+> Despliegue manual (sin Actions), desde una PC con `flyctl` y sesión iniciada:
+> `fly deploy`.

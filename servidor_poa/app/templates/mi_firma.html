@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block titulo %}Mi firma{% endblock %}
+{% block encabezado %}Mi firma{% endblock %}
+{% block subtitulo %}Dibuja tu firma una vez; se estampará en cada hoja del informe que te toque firmar.{% endblock %}
+
+{% block contenido %}
+<section class="card" style="max-width:520px">
+  {% if error %}<div class="toast warn" style="margin-bottom:14px"><div>{{ error }}</div></div>{% endif %}
+
+  {% if u.firma %}
+  <div class="dfield filled" style="margin-bottom:16px">
+    <label>Firma guardada</label>
+    <div style="background:#fff;border:1px solid var(--glass-border-soft);border-radius:10px;padding:10px;text-align:center">
+      <img src="/firma/{{ u.firma }}" alt="Tu firma actual" style="max-height:90px">
+    </div>
+    <form method="post" action="/mi-firma/borrar" style="margin-top:10px"
+          onsubmit="return confirm('¿Borrar tu firma guardada? Las hojas saldrán con la línea en blanco para firmar a mano.')">
+      <button class="btn sm danger" type="submit">Borrar firma guardada</button>
+    </form>
+  </div>
+  {% endif %}
+
+  <p class="section-desc" style="margin-bottom:10px">
+    Traza tu firma dentro del recuadro con el dedo (en celular) o con el mouse. Al guardar,
+    reemplaza la anterior.
+  </p>
+
+  <div style="background:#fff;border:2px dashed var(--glass-border-soft);border-radius:12px;overflow:hidden">
+    <canvas id="lienzoFirma" style="display:block;width:100%;height:200px;touch-action:none;cursor:crosshair"></canvas>
+  </div>
+
+  <form method="post" action="/mi-firma" id="formFirma" class="stack" style="margin-top:14px">
+    <input type="hidden" name="firma" id="firmaDato">
+    <div class="actions">
+      <button class="btn" type="button" id="btnLimpiar">Limpiar</button>
+      <button class="btn primary" type="submit" id="btnGuardar">Guardar firma</button>
+      <a class="btn" href="/tablero">Volver</a>
+    </div>
+  </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const lienzo = document.getElementById('lienzoFirma');
+    const ctx = lienzo.getContext('2d');
+    let dibujando = false, huboTrazo = false, ultimo = null;
+
+    // El lienzo se dibuja a la resolución real del dispositivo para que la firma salga
+    // nítida. Cada vez que cambia el tamaño en pantalla, se reescala.
+    function ajustar() {
+      const dpr = window.devicePixelRatio || 1;
+      const ancho = lienzo.clientWidth, alto = lienzo.clientHeight;
+      lienzo.width = Math.round(ancho * dpr);
+      lienzo.height = Math.round(alto * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.lineWidth = 2.4;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#12212e';
+    }
+    ajustar();
+    window.addEventListener('resize', () => { const d = lienzo.toDataURL(); ajustar(); const im = new Image(); im.onload = () => ctx.drawImage(im, 0, 0, lienzo.clientWidth, lienzo.clientHeight); im.src = d; });
+
+    function punto(ev) {
+      const r = lienzo.getBoundingClientRect();
+      const t = ev.touches ? ev.touches[0] : ev;
+      return { x: t.clientX - r.left, y: t.clientY - r.top };
+    }
+    function empezar(ev) { ev.preventDefault(); dibujando = true; ultimo = punto(ev); }
+    function mover(ev) {
+      if (!dibujando) return;
+      ev.preventDefault();
+      const p = punto(ev);
+      ctx.beginPath();
+      ctx.moveTo(ultimo.x, ultimo.y);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      ultimo = p; huboTrazo = true;
+    }
+    function terminar() { dibujando = false; }
+
+    lienzo.addEventListener('mousedown', empezar);
+    lienzo.addEventListener('mousemove', mover);
+    window.addEventListener('mouseup', terminar);
+    lienzo.addEventListener('touchstart', empezar, { passive: false });
+    lienzo.addEventListener('touchmove', mover, { passive: false });
+    lienzo.addEventListener('touchend', terminar);
+
+    document.getElementById('btnLimpiar').addEventListener('click', function () {
+      ctx.clearRect(0, 0, lienzo.width, lienzo.height);
+      huboTrazo = false;
+    });
+
+    document.getElementById('formFirma').addEventListener('submit', function (ev) {
+      if (!huboTrazo) {
+        ev.preventDefault();
+        alert('Traza tu firma dentro del recuadro antes de guardar.');
+        return;
+      }
+      document.getElementById('firmaDato').value = lienzo.toDataURL('image/png');
+    });
+  })();
+</script>
+{% endblock %}
