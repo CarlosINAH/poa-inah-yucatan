@@ -16,6 +16,9 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATOS_DIR = BASE_DIR / "datos"
 FOTOS_DIR = DATOS_DIR / "fotos"
+# Firmas dibujadas por cada persona (PNG con fondo transparente). Se guardan una vez y
+# se reutilizan en cada hoja del PDF donde esa persona firma como ejecutante o responsable.
+FIRMAS_DIR = DATOS_DIR / "firmas"
 DB_PATH = DATOS_DIR / "poa.db"
 
 ESQUEMA = """
@@ -34,6 +37,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   es_responsable         INTEGER NOT NULL DEFAULT 0,
   es_admin               INTEGER NOT NULL DEFAULT 0,
   pin_hash               TEXT NOT NULL DEFAULT '',
+  firma                  TEXT NOT NULL DEFAULT '',   -- PNG de la firma dibujada (nombre de archivo en firmas/)
   activo                 INTEGER NOT NULL DEFAULT 1,
   creado_en              TEXT NOT NULL
 );
@@ -165,6 +169,7 @@ def norm(texto: str | None) -> str:
 def conectar() -> sqlite3.Connection:
     DATOS_DIR.mkdir(parents=True, exist_ok=True)
     FOTOS_DIR.mkdir(parents=True, exist_ok=True)
+    FIRMAS_DIR.mkdir(parents=True, exist_ok=True)
     # check_same_thread=False porque las rutas async abren la conexión en un hilo del
     # pool y la usan en el event loop. Es seguro: cada petición tiene la suya y no se
     # comparte entre peticiones (ver la dependencia bd() en main.py).
@@ -192,6 +197,11 @@ def _migrar(con: sqlite3.Connection) -> None:
     # del calendario de Outlook con cada persona de la Sección.
     if "email" not in columnas:
         con.execute("ALTER TABLE usuarios ADD COLUMN email TEXT NOT NULL DEFAULT ''")
+
+    # v3.9: firma dibujada por cada persona, para estamparla en cada hoja del informe.
+    if "firma" not in columnas:
+        con.execute("ALTER TABLE usuarios ADD COLUMN firma TEXT NOT NULL DEFAULT ''")
+
     for obsoleta in ("password_hash", "debe_cambiar_password"):
         if obsoleta in columnas:
             con.execute(f"ALTER TABLE usuarios DROP COLUMN {obsoleta}")

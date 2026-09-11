@@ -168,6 +168,23 @@ está bien comentado y es coherente.
 
 ---
 
+## Observaciones atendidas — Firmas e informe por hoja ✅ (v3.9)
+- [x] **Firma por hoja**: cada persona traza su firma una vez en `/mi-firma` (lienzo táctil
+      y de mouse, `mi_firma.html` + módulo `firmas.py`). Se guarda como PNG transparente
+      (columna `usuarios.firma`) y se estampa sobre la línea de firma en **cada hoja** del
+      informe: el/los **ejecutantes** (participantes) y el **responsable** de proyecto.
+      Si alguien no tiene firma cargada, su hoja sale con la línea en blanco para firmar a mano.
+- [x] **Una actividad por hoja + hoja de fotos**: `pdf.py` maqueta cada actividad como hoja
+      de datos (título, ubicación, objetivo, resumen y firmas) y, en seguida, una hoja aparte
+      con las fotografías (también firmada). Tras la hoja de fotos salta de página a la
+      siguiente actividad, para un documento limpio y entendible.
+- [x] **Cada quien descarga lo suyo**: botón «Descargar mis actividades (PDF)» en el tablero
+      y ruta `GET /pdf/mias`; reúne en un solo PDF las actividades que capturó la persona,
+      con la misma hoja por actividad.
+- [x] **Consolidado = resumen**: `GET /pdf/consolidado` ahora entrega sólo el resumen
+      ejecutivo de la Sección (totales por zona/eje y firmas de coordinación), sin volcar el
+      detalle de todas las actividades. El detalle vive en las descargas individuales.
+
 ### Sugerencia de ritmo (para que alcancen los tokens)
 Una etapa por sesión. Empezar por la **Etapa 0** (rápida y sin riesgo) y la **Etapa 1**
 (la que más valor da: a partir de ahí todo lo demás se hace con red). Las etapas 3–6 son

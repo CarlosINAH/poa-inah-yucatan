@@ -15,9 +15,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, consolidado, fotos as fotos_mod, importador, lugares, mapas, pdf
-from .db import (FOTOS_DIR, PROGRAMAS_NACIONALES, TRIMESTRES, ahora, conectar,
-                 crear_esquema, norm)
+from . import (auth, consolidado, firmas as firmas_mod, fotos as fotos_mod,
+               importador, lugares, mapas, pdf)
+from .db import (FIRMAS_DIR, FOTOS_DIR, PROGRAMAS_NACIONALES, TRIMESTRES, ahora,
+                 conectar, crear_esquema, norm)
 
 BASE = Path(__file__).resolve().parent
 app = FastAPI(title="Plataforma POA · Conservación · Centro INAH Yucatán")
@@ -253,6 +254,48 @@ def mi_pin(request: Request, actual: str = Form(...), nuevo: str = Form(...),
     con.commit()
     avisar(request, "Tu PIN quedó actualizado.")
     return RedirectResponse("/tablero", status_code=303)
+
+
+@app.get("/mi-firma", response_class=HTMLResponse)
+def mi_firma_form(request: Request, u: sqlite3.Row = Depends(exigir_sesion)):
+    return vista(request, "mi_firma.html", {"u": u, "error": None})
+
+
+@app.post("/mi-firma", response_class=HTMLResponse)
+def mi_firma(request: Request, firma: str = Form(""),
+             u: sqlite3.Row = Depends(exigir_sesion),
+             con: sqlite3.Connection = Depends(bd)):
+    try:
+        archivo = firmas_mod.procesar(firma)
+    except firmas_mod.FirmaInvalida as exc:
+        return vista(request, "mi_firma.html", {"u": u, "error": str(exc)})
+    anterior = u["firma"]
+    con.execute("UPDATE usuarios SET firma = ? WHERE id = ?", (archivo, u["id"]))
+    con.commit()
+    if anterior and anterior != archivo:
+        firmas_mod.eliminar(anterior)   # el PNG viejo ya no lo usa nadie
+    avisar(request, "Tu firma quedó guardada. Aparecerá en cada hoja del informe que firmes.")
+    return RedirectResponse("/mi-firma", status_code=303)
+
+
+@app.post("/mi-firma/borrar")
+def borrar_firma(request: Request, u: sqlite3.Row = Depends(exigir_sesion),
+                 con: sqlite3.Connection = Depends(bd)):
+    if u["firma"]:
+        firmas_mod.eliminar(u["firma"])
+    con.execute("UPDATE usuarios SET firma = '' WHERE id = ?", (u["id"],))
+    con.commit()
+    avisar(request, "Se borró tu firma. Las hojas saldrán con la línea en blanco para firmar a mano.")
+    return RedirectResponse("/mi-firma", status_code=303)
+
+
+@app.get("/firma/{archivo}")
+def servir_firma(archivo: str, u: sqlite3.Row = Depends(exigir_sesion)):
+    ruta = (FIRMAS_DIR / Path(archivo).name).resolve()
+    if not ruta.is_relative_to(FIRMAS_DIR.resolve()) or not ruta.exists():
+        raise HTTPException(404, "Esa firma no existe.")
+    return Response(ruta.read_bytes(), media_type="image/png",
+                    headers={"Cache-Control": "private, max-age=600"})
 
 
 @app.post("/salir")
@@ -780,6 +823,23 @@ def pdf_consolidado(anio: int | None = None, trimestre: int = 0, agrupar: str = 
     etiqueta = f"T{trimestre}" if trimestre else "anual"
     return Response(contenido, media_type="application/pdf", headers={
         "Content-Disposition": f'inline; filename="POA_consolidado_{anio}_{etiqueta}.pdf"'})
+
+
+@app.get("/pdf/mias")
+def pdf_mias(anio: int | None = None, trimestre: int = 0,
+             u: sqlite3.Row = Depends(exigir_sesion),
+             con: sqlite3.Connection = Depends(bd)):
+    """El PDF de las actividades que capturó quien lo pide: una hoja por actividad, con
+    su hoja de fotos, y firmadas. Cada quien descarga lo suyo."""
+    anio = anio or consolidado.anio_por_defecto(con)
+    trimestre = trimestre if trimestre in (1, 2, 3, 4) else 0
+    actividades = consolidado.actividades_de(con, u["id"], anio, trimestre)
+    if not actividades:
+        raise HTTPException(404, "No tienes actividades capturadas en ese periodo.")
+    contenido = pdf.de_actividades(con, actividades, con_fotos=True)
+    etiqueta = f"T{trimestre}" if trimestre else "anual"
+    return Response(contenido, media_type="application/pdf", headers={
+        "Content-Disposition": f'inline; filename="POA_mis_actividades_{anio}_{etiqueta}.pdf"'})
 
 
 @app.get("/pdf/actividad/{act_id}")

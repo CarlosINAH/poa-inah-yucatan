@@ -44,6 +44,7 @@ SELECT a.*,
        c.actividad_poa, c.unidad_medida, c.programa_operativo, c.eje,
        c.linea_accion_enc, c.eje_estrategico_enc,
        r.nombre AS responsable_nombre, r.cargo AS responsable_cargo,
+       r.firma AS responsable_firma,
        cr.nombre AS creador_nombre,
        (a.inf_t1 + a.inf_t2 + a.inf_t3 + a.inf_t4) AS total_informado,
        (a.plan_t1 + a.plan_t2 + a.plan_t3 + a.plan_t4) AS total_planeado
@@ -188,6 +189,31 @@ def buscar(con: sqlite3.Connection, anio: int, texto: str = "", zona: str = "",
     return salida
 
 
+def actividades_de(con: sqlite3.Connection, uid: int, anio: int,
+                   trimestre: int = 0) -> list[dict]:
+    """Las actividades en las que participó una persona, con sus participaciones cargadas.
+
+    Es lo que alimenta la descarga «mis actividades»: cada quien se lleva en un PDF todo
+    lo que capturó, con la hoja por actividad del informe individual.
+    """
+    condiciones = ["a.anio = ?",
+                   "EXISTS (SELECT 1 FROM participaciones p "
+                   "WHERE p.actividad_id = a.id AND p.usuario_id = ?)"]
+    params: list = [anio, uid]
+    if trimestre in (1, 2, 3, 4):
+        condiciones.append("a.trimestre = ?")
+        params.append(trimestre)
+    filas = con.execute(
+        _SELECT_ACTIVIDAD + " WHERE " + " AND ".join(condiciones)
+        + " ORDER BY a.trimestre, a.zona, a.titulo", params).fetchall()
+    salida = []
+    for f in filas:
+        act = dict(f)
+        act["participaciones"] = participaciones(con, f["id"])
+        salida.append(act)
+    return salida
+
+
 def archivos_de_actividad(con: sqlite3.Connection, act_id: int) -> list[str]:
     return [f["archivo"] for f in con.execute(
         """SELECT f.archivo FROM fotos f
@@ -220,7 +246,7 @@ def participacion(con: sqlite3.Connection, parte_id: int) -> sqlite3.Row | None:
 
 def participaciones(con: sqlite3.Connection, act_id: int) -> list[dict]:
     filas = con.execute(
-        """SELECT p.*, u.nombre, u.cargo, u.grupo
+        """SELECT p.*, u.nombre, u.cargo, u.grupo, u.firma
              FROM participaciones p JOIN usuarios u ON u.id = p.usuario_id
             WHERE p.actividad_id = ?
             ORDER BY p.creada_en""", (act_id,)).fetchall()

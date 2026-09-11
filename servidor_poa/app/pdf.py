@@ -17,11 +17,12 @@ from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
 from reportlab.platypus import (Image, KeepTogether, PageBreak, Paragraph,
                                 SimpleDocTemplate, Spacer, Table, TableStyle)
 
-from .consolidado import armar, participaciones
-from .db import FOTOS_DIR, TRIMESTRES
+from .consolidado import participaciones
+from .db import FIRMAS_DIR, FOTOS_DIR, TRIMESTRES
 from .mapas import obtener_mapa
 
 # Los logos del membrete viven junto a la app (app/static), la misma carpeta que usa
@@ -69,6 +70,11 @@ E = {
     "cap_mapa": ParagraphStyle("cap_mapa", parent=_ss["Normal"], fontSize=9.5, leading=12,
                                textColor=TINTA, alignment=TA_CENTER, fontName="Helvetica-Bold",
                                spaceBefore=3, spaceAfter=2),
+    # --- Firmas por hoja (v3.9) ---
+    "firma_nombre": ParagraphStyle("firma_nombre", parent=_ss["Normal"], fontSize=8.5, leading=10,
+                                   textColor=TINTA, alignment=TA_CENTER, fontName="Helvetica-Bold"),
+    "firma_rol": ParagraphStyle("firma_rol", parent=_ss["Normal"], fontSize=7.5, leading=9,
+                                textColor=colors.HexColor("#5b6b7a"), alignment=TA_CENTER),
 }
 
 _MAPA_ANCHO = 140 * mm            # ancho del mapa en la hoja (centrado)
@@ -259,6 +265,70 @@ def _firmas() -> list:
     return [Spacer(1, 10 * mm), t]
 
 
+def _imagen_firma(archivo: str, ancho_max: float, alto_max: float):
+    """La firma dibujada, escalada para caer sobre la línea sin deformarse. None si no hay."""
+    if not archivo:
+        return None
+    ruta = FIRMAS_DIR / Path(archivo).name
+    if not ruta.exists():
+        return None
+    try:
+        iw, ih = ImageReader(str(ruta)).getSize()
+        escala = min(ancho_max / max(iw, 1), alto_max / max(ih, 1))
+        return Image(str(ruta), width=iw * escala, height=ih * escala, mask="auto")
+    except Exception:
+        return None  # una firma ilegible no debe tumbar el informe
+
+
+def _celda_firma(nombre: str, cargo: str, etiqueta: str, firma_archivo: str) -> Table:
+    """Una casilla de firma: la firma dibujada sobre la línea, con nombre y rol debajo."""
+    firma = _imagen_firma(firma_archivo, 46 * mm, 13 * mm)
+    tope = firma if firma is not None else Spacer(1, 13 * mm)
+    rol = _esc(etiqueta) + (f" · {_esc(cargo)}" if cargo else "")
+    t = Table([[tope],
+               [Paragraph(_esc(nombre) or "—", E["firma_nombre"])],
+               [Paragraph(rol, E["firma_rol"])]],
+              colWidths=[52 * mm], rowHeights=[15 * mm, None, None])
+    t.setStyle(TableStyle([
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (0, 0), "BOTTOM"),
+        ("LINEABOVE", (0, 1), (0, 1), 0.7, TINTA),
+        ("TOPPADDING", (0, 1), (0, 1), 2), ("BOTTOMPADDING", (0, 0), (0, 0), 1),
+        ("TOPPADDING", (0, 2), (0, 2), 0),
+    ]))
+    return t
+
+
+def _firmas_actividad(act: dict) -> list:
+    """Bloque de firmas de la hoja: cada ejecutante (participante) y el responsable.
+
+    Va al pie de CADA hoja de la actividad (la de datos y la de fotos), para que el
+    informe quede firmado hoja por hoja como pidió la Sección.
+    """
+    partes = act.get("participaciones") or []
+    celdas = [_celda_firma(p["nombre"], p.get("cargo", ""), "Ejecutante", p.get("firma", ""))
+              for p in partes]
+    ids_ejecutantes = {p.get("usuario_id") for p in partes}
+    # El responsable de proyecto firma como tal, salvo que ya figure como ejecutante.
+    if act.get("responsable_nombre") and act.get("responsable_id") not in ids_ejecutantes:
+        celdas.append(_celda_firma(act["responsable_nombre"], act.get("responsable_cargo", ""),
+                                   "Responsable", act.get("responsable_firma", "")))
+    if not celdas:
+        return []
+
+    filas = [celdas[i:i + 3] for i in range(0, len(celdas), 3)]
+    for fila in filas:
+        while len(fila) < 3:
+            fila.append("")
+    t = Table(filas, colWidths=[58 * mm] * 3)
+    t.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("TOPPADDING", (0, 0), (-1, -1), 10), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    return [Spacer(1, 6 * mm), _etiqueta_seccion("Firmas"), t]
+
+
 def _etiqueta_seccion(texto: str) -> Paragraph:
     return Paragraph(_esc(texto).upper(), E["et_seccion"])
 
@@ -325,10 +395,9 @@ def _cuadricula_fotos(pares: list) -> list:
 
 
 def _hoja_actividad(con, act: dict, con_fotos: bool = True) -> list:
-    """Una actividad = una hoja: título, ubicación (mapa), objetivo y resumen.
-
-    Las fotos van al final; si no caben en la hoja, cada grupo de 4 (cuadrícula 2×2)
-    salta a la hoja siguiente en bloque, sin partirse.
+    """Una actividad: hoja de datos (título, ubicación, objetivo, resumen y firmas) y,
+    en seguida, una hoja aparte con las fotografías (también firmada). Tras la hoja de
+    fotos, el documento continúa con la siguiente actividad en una hoja nueva.
     """
     piezas: list = [
         Paragraph(_esc(act["titulo"]), E["titulo_act"]),
@@ -352,13 +421,25 @@ def _hoja_actividad(con, act: dict, con_fotos: bool = True) -> list:
     else:
         piezas.append(Paragraph("<i>Sin resumen capturado.</i>", E["cuerpo"]))
 
+    # Firmas al pie de la hoja de datos. (Se reconstruyen para la hoja de fotos: un mismo
+    # flowable no puede dibujarse dos veces en un solo documento.)
+    piezas += _firmas_actividad(act)
+
+    # La evidencia fotográfica va en su propia hoja, después de los datos.
+    fotos_lista: list = []
     if con_fotos:
         todas = [(f, parte["nombre"]) for parte in partes
                  for f in _fotos_ordenadas(parte["fotos"])]
-        for i in range(0, len(todas), 4):
-            grupo = _cuadricula_fotos(todas[i:i + 4])
-            if grupo:
-                piezas.append(KeepTogether([_etiqueta_seccion("Evidencia fotográfica"), *grupo]))
+        if todas:
+            fotos_lista.append(_etiqueta_seccion("Evidencia fotográfica"))
+            for i in range(0, len(todas), 4):
+                grupo = _cuadricula_fotos(todas[i:i + 4])
+                if grupo:
+                    fotos_lista.append(KeepTogether(grupo))
+    if fotos_lista:
+        piezas.append(PageBreak())
+        piezas += fotos_lista
+        piezas += _firmas_actividad(act)  # la hoja de fotos también va firmada
     return piezas
 
 
@@ -374,6 +455,28 @@ def individual(con: sqlite3.Connection, act_id: int) -> bytes:
     doc = _documento(buffer)
     doc.build(_hoja_actividad(con, act, con_fotos=True),
               onFirstPage=_membrete, onLaterPages=_membrete)
+    return buffer.getvalue()
+
+
+def de_actividades(con: sqlite3.Connection, actividades: list[dict],
+                   con_fotos: bool = True) -> bytes:
+    """Un PDF con varias actividades: cada una en su hoja de datos + su hoja de fotos.
+
+    Lo usa la descarga «mis actividades»: reúne en un solo archivo todo lo que capturó
+    una persona, con la misma hoja por actividad que el informe individual.
+    """
+    buffer = io.BytesIO()
+    doc = _documento(buffer)
+    piezas: list = []
+    for i, act in enumerate(actividades):
+        if i:
+            piezas.append(PageBreak())
+        piezas += _hoja_actividad(con, act, con_fotos=con_fotos)
+    if not piezas:
+        piezas = [Spacer(1, 20 * mm),
+                  Paragraph("Aún no tienes actividades capturadas en este periodo.",
+                            E["cuerpo"])]
+    doc.build(piezas, onFirstPage=_membrete, onLaterPages=_membrete)
     return buffer.getvalue()
 
 
@@ -425,18 +528,15 @@ def _portada(anio: int, trimestre: int, agrupar: str, tot: dict, grupos: list[di
 
 def consolidado(con: sqlite3.Connection, grupos: list[dict], anio: int, trimestre: int,
                 agrupar: str, con_fotos: bool = True) -> bytes:
+    """El consolidado es sólo el resumen ejecutivo de la Sección: totales por zona/eje y
+    firmas de la coordinación. El detalle de cada actividad vive en su hoja individual y
+    en la descarga «mis actividades» de cada persona, no aquí.
+    """
     from .consolidado import totales
     tot = totales(grupos)
 
-    # Una actividad por hoja: se aplanan los grupos conservando su orden (por zona/eje).
-    actividades = [a for g in grupos for a in g["actividades"]]
-
     buffer = io.BytesIO()
     doc = _documento(buffer)
-    piezas: list = _portada(anio, trimestre, agrupar, tot, grupos)
-    for act in actividades:
-        piezas.append(PageBreak())
-        piezas += _hoja_actividad(con, act, con_fotos=con_fotos)
-
-    doc.build(piezas, onFirstPage=_membrete, onLaterPages=_membrete)
+    doc.build(_portada(anio, trimestre, agrupar, tot, grupos),
+              onFirstPage=_membrete, onLaterPages=_membrete)
     return buffer.getvalue()
