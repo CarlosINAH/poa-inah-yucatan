@@ -587,29 +587,49 @@ def eliminar_actividad(request: Request, act_id: int,
 
 # ------------------------------------------------------- autorización por firma
 
-@app.post("/actividades/{act_id}/solicitar-firma")
-def solicitar_firma(request: Request, act_id: int, u: sqlite3.Row = Depends(exigir_sesion),
-                    con: sqlite3.Connection = Depends(bd)):
-    """El empleado pide al responsable que firme y autorice su actividad."""
+@app.post("/actividades/{act_id}/firmar")
+async def firmar_actividad(request: Request, act_id: int,
+                           u: sqlite3.Row = Depends(exigir_sesion),
+                           con: sqlite3.Connection = Depends(bd)):
+    """Paso 4 del registro: el empleado firma su actividad y la envía al responsable.
+
+    La firma se dibuja aquí mismo (o se reutiliza la ya registrada). Queda guardada en el
+    perfil para reutilizarla en las siguientes actividades. Firmar deja la actividad lista
+    y solicita la autorización del responsable de proyecto.
+    """
     act = consolidado.actividad(con, act_id)
     if act is None:
         raise HTTPException(404, "Esa actividad no existe.")
     soy = con.execute("SELECT 1 FROM participaciones WHERE actividad_id = ? AND usuario_id = ?",
                       (act_id, u["id"])).fetchone()
     if not (soy or consolidado.puede_editar(u, act)):
-        raise HTTPException(403, "Sólo quien participa en la actividad puede solicitar su firma.")
+        raise HTTPException(403, "Sólo quien participa en la actividad puede firmarla.")
     if consolidado.esta_autorizada(act):
         avisar(request, "Esa actividad ya está autorizada.")
         return RedirectResponse(f"/actividades/{act_id}", status_code=303)
     if not act["responsable_id"]:
         avisar(request, "Primero asigna un responsable de proyecto a la actividad (Editar ficha).")
         return RedirectResponse(f"/actividades/{act_id}", status_code=303)
-    if not u["firma"]:
-        avisar(request, "Antes de solicitar la firma, registra la tuya en «Mi firma».")
-        return RedirectResponse("/mi-firma", status_code=303)
+
+    # Firma dibujada en el momento (opcional): si viene, se guarda y reemplaza la anterior.
+    trazo = ((await request.form()).get("firma") or "").strip()
+    if trazo:
+        try:
+            archivo = firmas_mod.procesar(trazo)
+        except firmas_mod.FirmaInvalida as exc:
+            avisar(request, str(exc))
+            return RedirectResponse(f"/actividades/{act_id}", status_code=303)
+        anterior = u["firma"]
+        con.execute("UPDATE usuarios SET firma = ? WHERE id = ?", (archivo, u["id"]))
+        if anterior and anterior != archivo:
+            firmas_mod.eliminar(anterior)
+    elif not u["firma"]:
+        avisar(request, "Dibuja tu firma para poder firmar la actividad.")
+        return RedirectResponse(f"/actividades/{act_id}", status_code=303)
+
     consolidado.solicitar_autorizacion(con, act_id)
     con.commit()
-    avisar(request, "Se solicitó la firma del responsable. Verás el PDF cuando la autorice.")
+    avisar(request, "Firmaste la actividad. Se envió al responsable para su autorización.")
     return RedirectResponse(f"/actividades/{act_id}", status_code=303)
 
 

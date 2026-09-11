@@ -172,6 +172,11 @@ está bien comentado y es coherente.
 - [x] **Firma dibujada, guardada y borrable**: cada persona traza su firma en `/mi-firma`
       (lienzo táctil y de mouse, `mi_firma.html` + `firmas.py`). Se guarda como PNG
       transparente (columna `usuarios.firma`) y **el propio usuario la puede borrar**.
+- [x] **Firmar es el paso 4 del registro**: el asistente muestra 1·Periodo → 2·Qué hiciste
+      → 3·Fotos → **4·Firma**. En la ficha, el empleado firma ahí mismo (dibuja en un
+      lienzo o reutiliza con un clic su firma ya registrada) y con eso se envía al
+      responsable. La firma **no se borra**: queda en el perfil para reutilizarla en las
+      siguientes actividades (`POST /actividades/{id}/firmar`).
 - [x] **Autorización por firma (solicitar → firmar)**: el empleado pide la firma de su
       actividad (`POST /actividades/{id}/solicitar-firma`); el responsable de proyecto la ve
       en su bandeja **Autorizaciones** (`/autorizaciones`, agrupadas por quién las pidió:
