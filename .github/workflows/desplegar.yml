@@ -1,0 +1,33 @@
+# Despliegue de la Plataforma POA a Fly.io.
+#
+# Requisito único (una sola vez): en GitHub → Settings → Secrets and variables →
+# Actions, crear el secreto FLY_API_TOKEN con un token de Fly
+# (se obtiene con:  fly tokens create deploy -a poa-inah-yucatan).
+#
+# A partir de ahí, se despliega:
+#   - solo:  al hacer merge a main (push a main), o
+#   - a mano: pestaña Actions → «Desplegar a Fly.io» → Run workflow.
+#
+# Nota SQLite: la app usa una sola máquina con volumen persistente. `concurrency`
+# evita despliegues encimados que podrían chocar con la base.
+name: Desplegar a Fly.io
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  desplegar:
+    name: Construir y publicar en Fly.io
+    runs-on: ubuntu-latest
+    concurrency:
+      group: fly-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: fly deploy
+        run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
