@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block titulo %}Autorizaciones{% endblock %}
+{% block encabezado %}Autorizaciones pendientes{% endblock %}
+{% block subtitulo %}Solicitudes de firma dirigidas a ti como responsable de proyecto.{% endblock %}
+
+{% block contenido %}
+{% if not tengo_firma %}
+<div class="toast warn" style="margin-bottom:14px">
+  <div>Aún no tienes una firma registrada. Regístrala en
+    <a href="/mi-firma">Mi firma</a> para poder autorizar actividades.</div>
+</div>
+{% endif %}
+
+{% if not grupos %}
+<section class="card">
+  <div class="empty">
+    <b>No tienes solicitudes de firma pendientes.</b>
+    <p class="section-desc">Cuando alguien pida tu firma para una actividad de la que eres
+      responsable, aparecerá aquí.</p>
+  </div>
+</section>
+{% else %}
+<form method="post" action="/autorizaciones/autorizar" class="stack">
+  {% for g in grupos %}
+  <section class="card">
+    <div class="section-head">
+      <div>
+        <h2>{{ g.solicitante_nombre }} solicitó firma de
+          {{ g.actividades | length }} actividad{{ 'es' if g.actividades | length != 1 else '' }}</h2>
+        <p class="section-desc">Marca las que autorizas. Al firmar se habilita su PDF.</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:2.4em">✓</th><th>Actividad</th><th>Periodo</th><th>Zona</th></tr>
+        </thead>
+        <tbody>
+          {% for a in g.actividades %}
+          <tr>
+            <td><input type="checkbox" name="act_ids" value="{{ a.id }}" checked></td>
+            <td><a href="/actividades/{{ a.id }}" target="_blank">{{ a.titulo }}</a></td>
+            <td>{{ trimestres[a.trimestre] if a.trimestre else 'Anual' }} {{ a.anio }}</td>
+            <td>{{ a.zona or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endfor %}
+
+  <div class="actions">
+    <button class="btn primary" type="submit" {% if not tengo_firma %}disabled{% endif %}>
+      Firmar y autorizar seleccionadas
+    </button>
+  </div>
+  <p class="muted" style="font-size:12px">Se estampará tu firma registrada en cada actividad
+    que autorices; la persona que la solicitó verá su PDF firmado.</p>
+</form>
+{% endif %}
+{% endblock %}

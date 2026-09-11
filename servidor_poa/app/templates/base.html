@@ -44,6 +44,7 @@
         <span class="nav-label">Navegación</span>
         <a class="tab-btn {% if ruta == '/tablero' or ruta.startswith('/actividades') %}active{% endif %}" href="/tablero">Actividades</a>
         {% if u.es_admin or u.es_responsable %}
+        <a class="tab-btn {% if ruta == '/autorizaciones' %}active{% endif %}" href="/autorizaciones">Autorizaciones</a>
         <a class="tab-btn {% if ruta == '/consolidado' %}active{% endif %}" href="/consolidado">Consolidado</a>
         {% endif %}
         {% if u.es_admin %}

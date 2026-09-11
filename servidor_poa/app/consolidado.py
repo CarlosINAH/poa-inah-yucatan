@@ -46,12 +46,14 @@ SELECT a.*,
        r.nombre AS responsable_nombre, r.cargo AS responsable_cargo,
        r.firma AS responsable_firma,
        cr.nombre AS creador_nombre,
+       au.nombre AS autorizada_por_nombre,
        (a.inf_t1 + a.inf_t2 + a.inf_t3 + a.inf_t4) AS total_informado,
        (a.plan_t1 + a.plan_t2 + a.plan_t3 + a.plan_t4) AS total_planeado
   FROM actividades a
   JOIN catalogo_poa c  ON c.id = a.catalogo_id
-  LEFT JOIN usuarios r ON r.id = a.responsable_id
-  JOIN usuarios cr     ON cr.id = a.creada_por
+  LEFT JOIN usuarios r  ON r.id = a.responsable_id
+  LEFT JOIN usuarios au ON au.id = a.autorizada_por
+  JOIN usuarios cr      ON cr.id = a.creada_por
 """
 
 
@@ -151,6 +153,74 @@ def puede_editar(u: sqlite3.Row, act: sqlite3.Row) -> bool:
     El resumen y las fotos de cada quien son otra cosa: eso siempre es del dueño."""
     return bool(u["es_admin"] or act["creada_por"] == u["id"]
                 or (act["responsable_id"] and act["responsable_id"] == u["id"]))
+
+
+# --------------------------------------------------------------- autorización por firma
+
+def puede_autorizar(u: sqlite3.Row, act) -> bool:
+    """Firma y autoriza el responsable de proyecto de esa actividad (o la coordinación)."""
+    resp = act["responsable_id"] if not isinstance(act, dict) else act.get("responsable_id")
+    return bool(u["es_admin"] or (resp and resp == u["id"]))
+
+
+def esta_autorizada(act) -> bool:
+    valor = act["autorizada_en"] if not isinstance(act, dict) else act.get("autorizada_en")
+    return bool(valor)
+
+
+def solicitar_autorizacion(con: sqlite3.Connection, act_id: int) -> None:
+    """El empleado pide la firma del responsable. No repite fecha si ya está autorizada."""
+    con.execute(
+        "UPDATE actividades SET autorizacion_solicitada = ? "
+        "WHERE id = ? AND autorizada_en = ''", (ahora(), act_id))
+
+
+def autorizar(con: sqlite3.Connection, act_id: int, uid: int) -> None:
+    """El responsable firma y autoriza: a partir de aquí el PDF se puede ver."""
+    con.execute(
+        "UPDATE actividades SET autorizada_en = ?, autorizada_por = ? WHERE id = ?",
+        (ahora(), uid, act_id))
+
+
+def revocar_autorizacion(con: sqlite3.Connection, act_id: int) -> None:
+    """Quita la firma/autorización (por si el responsable se equivocó o hubo un cambio)."""
+    con.execute(
+        "UPDATE actividades SET autorizada_en = '', autorizada_por = NULL WHERE id = ?",
+        (act_id,))
+
+
+def pendientes_para(con: sqlite3.Connection, uid: int, anio: int | None = None) -> list[dict]:
+    """Solicitudes de firma dirigidas a un responsable, agrupadas por quien las pidió.
+
+    Devuelve, p. ej.: «Jareth solicitó firma de 3 actividades de las que eres responsable».
+    """
+    condiciones = ["a.responsable_id = ?", "a.autorizacion_solicitada != ''",
+                   "a.autorizada_en = ''"]
+    params: list = [uid]
+    if anio:
+        condiciones.append("a.anio = ?")
+        params.append(anio)
+    filas = con.execute(
+        _SELECT_ACTIVIDAD + " WHERE " + " AND ".join(condiciones)
+        + " ORDER BY cr.nombre, a.autorizacion_solicitada", params).fetchall()
+
+    grupos: dict[int, dict] = {}
+    for f in filas:
+        act = dict(f)
+        g = grupos.setdefault(act["creada_por"], {
+            "solicitante_id": act["creada_por"],
+            "solicitante_nombre": act["creador_nombre"],
+            "actividades": [],
+        })
+        g["actividades"].append(act)
+    return list(grupos.values())
+
+
+def cuenta_pendientes(con: sqlite3.Connection, uid: int) -> int:
+    return con.execute(
+        "SELECT COUNT(*) c FROM actividades "
+        "WHERE responsable_id = ? AND autorizacion_solicitada != '' AND autorizada_en = ''",
+        (uid,)).fetchone()["c"]
 
 
 def buscar(con: sqlite3.Connection, anio: int, texto: str = "", zona: str = "",

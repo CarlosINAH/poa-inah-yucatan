@@ -89,6 +89,14 @@ def _periodo(anio: int, trimestre: int) -> str:
     return f"{TRIMESTRES[trimestre]} de {anio}" if trimestre in TRIMESTRES else f"Ejercicio {anio}"
 
 
+def _fecha_iso(iso: str) -> str:
+    """De un sello ISO (2026-09-11T…) a «11/09/2026». Devuelve el original si no parsea."""
+    try:
+        return f"{date.fromisoformat(iso[:10]):%d/%m/%Y}"
+    except (ValueError, TypeError):
+        return str(iso or "")
+
+
 # ------------------------------------------------------------- encabezado / pie
 
 def _membrete(canvas, doc):
@@ -326,7 +334,14 @@ def _firmas_actividad(act: dict) -> list:
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
         ("TOPPADDING", (0, 0), (-1, -1), 10), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
-    return [Spacer(1, 6 * mm), _etiqueta_seccion("Firmas"), t]
+
+    if act.get("autorizada_en"):
+        quien = act.get("autorizada_por_nombre") or "el responsable"
+        leyenda = f"Autorizada por {_esc(quien)} el {_fecha_iso(act['autorizada_en'])}."
+    else:
+        leyenda = "Pendiente de autorización del responsable de proyecto."
+    return [Spacer(1, 6 * mm), _etiqueta_seccion("Firmas"), t,
+            Paragraph(leyenda, E["pie_foto"])]
 
 
 def _etiqueta_seccion(texto: str) -> Paragraph:

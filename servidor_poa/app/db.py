@@ -98,6 +98,11 @@ CREATE TABLE IF NOT EXISTS actividades (
   observaciones      TEXT NOT NULL DEFAULT '',
   fechas_ejecucion   TEXT NOT NULL DEFAULT '',
   responsable_id     INTEGER REFERENCES usuarios(id),
+  -- Autorización por firma: el empleado solicita, el responsable de proyecto autoriza.
+  -- El PDF de la actividad sólo se puede ver cuando está autorizada.
+  autorizacion_solicitada TEXT NOT NULL DEFAULT '',   -- fecha en que el empleado la pidió
+  autorizada_en      TEXT NOT NULL DEFAULT '',         -- fecha en que el responsable firmó
+  autorizada_por     INTEGER REFERENCES usuarios(id),  -- responsable que autorizó
   creada_por         INTEGER NOT NULL REFERENCES usuarios(id),
   creada_en          TEXT NOT NULL,
   actualizada_en     TEXT NOT NULL
@@ -232,6 +237,12 @@ def _migrar(con: sqlite3.Connection) -> None:
     # v3.8: actividad fuera de Yucatán (otro estado o país); el lugar se escribe a mano.
     if "fuera_estado" not in act_cols:
         con.execute("ALTER TABLE actividades ADD COLUMN fuera_estado INTEGER NOT NULL DEFAULT 0")
+
+    # v3.9: autorización por firma (el empleado solicita, el responsable firma y autoriza).
+    if "autorizacion_solicitada" not in act_cols:
+        con.execute("ALTER TABLE actividades ADD COLUMN autorizacion_solicitada TEXT NOT NULL DEFAULT ''")
+        con.execute("ALTER TABLE actividades ADD COLUMN autorizada_en TEXT NOT NULL DEFAULT ''")
+        con.execute("ALTER TABLE actividades ADD COLUMN autorizada_por INTEGER REFERENCES usuarios(id)")
 
     # v3.5: coordenadas de cada zona para el mapa del informe.
     zona_cols = {f["name"] for f in con.execute("PRAGMA table_info(zonas)")}
