@@ -948,6 +948,26 @@ def pdf_consolidado(anio: int | None = None, trimestre: int = 0, agrupar: str = 
         "Content-Disposition": f'inline; filename="POA_consolidado_{anio}_{etiqueta}.pdf"'})
 
 
+@app.get("/pdf/mias/vista-previa")
+def pdf_mias_vista_previa(anio: int | None = None, trimestre: int = 0,
+                         u: sqlite3.Row = Depends(exigir_sesion),
+                         con: sqlite3.Connection = Depends(bd)):
+    """Borrador para que el empleado revise que firmó TODAS sus actividades.
+
+    A diferencia del PDF oficial, NO exige la autorización del responsable: incluye todas
+    sus actividades del periodo (firmadas o no), con la marca «VISTA PREVIA» y el aviso de
+    cuáles le falta firmar."""
+    anio = anio or consolidado.anio_por_defecto(con)
+    trimestre = trimestre if trimestre in (1, 2, 3, 4) else 0
+    actividades = consolidado.actividades_de(con, u["id"], anio, trimestre)
+    if not actividades:
+        raise HTTPException(404, "Aún no tienes actividades capturadas en ese periodo.")
+    contenido = pdf.vista_previa(con, actividades, solo_usuario=u["id"])
+    etiqueta = f"T{trimestre}" if trimestre else "anual"
+    return Response(contenido, media_type="application/pdf", headers={
+        "Content-Disposition": f'inline; filename="POA_vista_previa_{anio}_{etiqueta}.pdf"'})
+
+
 @app.get("/pdf/mias")
 def pdf_mias(anio: int | None = None, trimestre: int = 0,
              u: sqlite3.Row = Depends(exigir_sesion),

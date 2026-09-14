@@ -6,6 +6,8 @@
 {% block acciones %}
 <a class="btn primary sm" href="/actividades/nueva">Registrar actividad</a>
 <a class="btn sm" target="_blank"
+   href="/pdf/mias/vista-previa?anio={{ anio }}{% if trimestre %}&trimestre={{ trimestre }}{% endif %}">Vista previa (revisar mis firmas)</a>
+<a class="btn sm" target="_blank"
    href="/pdf/mias?anio={{ anio }}{% if trimestre %}&trimestre={{ trimestre }}{% endif %}">Ver mis actividades firmadas (PDF)</a>
 {% endblock %}
 
