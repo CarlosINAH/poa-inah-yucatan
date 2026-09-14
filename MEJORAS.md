@@ -189,6 +189,11 @@ está bien comentado y es coherente.
       supervisar). No hay descarga por botón: se abre en el navegador para visualizar.
       La hoja muestra la firma del **ejecutante** y la del **responsable**, con la leyenda
       «Autorizada por X el …».
+- [x] **Vista previa para el empleado**: botón «Vista previa (revisar mis firmas)» en el
+      tablero (`GET /pdf/mias/vista-previa`). A diferencia del PDF oficial, NO exige la
+      autorización del responsable: junta TODAS sus actividades del periodo con la marca de
+      agua «VISTA PREVIA» y, al pie de cada hoja, «✔ Ya firmaste» o «⚠ Aún no has firmado»,
+      para que confirme que firmó todo antes de que el responsable autorice.
 - [x] **Resumen individual en la ficha de cada quien**: el PDF que descarga un empleado
       muestra sólo **su** resumen y su evidencia (no la de los demás participantes). El
       **compilado** que ve coordinación/responsable muestra un único resumen: el **más

@@ -125,6 +125,19 @@ def _membrete(canvas, doc):
     canvas.restoreState()
 
 
+def _membrete_previa(canvas, doc):
+    """Membrete + marca de agua diagonal «VISTA PREVIA» (borrador para revisar firmas)."""
+    _membrete(canvas, doc)
+    canvas.saveState()
+    ancho, alto = letter
+    canvas.setFont("Helvetica-Bold", 58)
+    canvas.setFillColor(colors.HexColor("#dbe4ec"))   # gris claro: no estorba la lectura
+    canvas.translate(ancho / 2, alto / 2)
+    canvas.rotate(45)
+    canvas.drawCentredString(0, 0, "VISTA PREVIA")
+    canvas.restoreState()
+
+
 def _documento(buffer) -> SimpleDocTemplate:
     return SimpleDocTemplate(
         buffer, pagesize=letter,
@@ -307,7 +320,8 @@ def _celda_firma(nombre: str, cargo: str, etiqueta: str, firma_archivo: str) -> 
     return t
 
 
-def _firmas_actividad(act: dict, partes: list | None = None) -> list:
+def _firmas_actividad(act: dict, partes: list | None = None,
+                      vista_previa: bool = False) -> list:
     """Bloque de firmas de la hoja: cada ejecutante (participante) y el responsable.
 
     Va al pie de CADA hoja de la actividad (la de datos y la de fotos), para que el
@@ -342,8 +356,17 @@ def _firmas_actividad(act: dict, partes: list | None = None) -> list:
         leyenda = f"Autorizada por {_esc(quien)} el {_fecha_iso(act['autorizada_en'])}."
     else:
         leyenda = "Pendiente de autorización del responsable de proyecto."
-    return [Spacer(1, 6 * mm), _etiqueta_seccion("Firmas"), t,
-            Paragraph(leyenda, E["pie_foto"])]
+
+    piezas = [Spacer(1, 6 * mm), _etiqueta_seccion("Firmas"), t]
+    if vista_previa:
+        # En el borrador, lo que importa es que el empleado confirme SU firma.
+        if act.get("autorizacion_solicitada") or act.get("autorizada_en"):
+            estado = "✔ Ya firmaste esta actividad (paso 4)."
+        else:
+            estado = "⚠ Aún no has firmado esta actividad. Ábrela y fírmala en el paso 4."
+        piezas.append(Paragraph(estado, E["pie_foto"]))
+    piezas.append(Paragraph(leyenda, E["pie_foto"]))
+    return piezas
 
 
 def _etiqueta_seccion(texto: str) -> Paragraph:
@@ -417,7 +440,8 @@ def _mas_extenso(partes: list) -> dict:
 
 
 def _hoja_actividad(con, act: dict, con_fotos: bool = True,
-                    solo_usuario: int | None = None, resumen_extenso: bool = False) -> list:
+                    solo_usuario: int | None = None, resumen_extenso: bool = False,
+                    vista_previa: bool = False) -> list:
     """Una actividad: hoja de datos (título, ubicación, objetivo, resumen y firmas) y,
     en seguida, una hoja aparte con las fotografías (también firmada). Tras la hoja de
     fotos, el documento continúa con la siguiente actividad en una hoja nueva.
@@ -459,7 +483,7 @@ def _hoja_actividad(con, act: dict, con_fotos: bool = True,
 
     # Firmas al pie de la hoja de datos. (Se reconstruyen para la hoja de fotos: un mismo
     # flowable no puede dibujarse dos veces en un solo documento.)
-    piezas += _firmas_actividad(act, partes)
+    piezas += _firmas_actividad(act, partes, vista_previa=vista_previa)
 
     # La evidencia fotográfica va en su propia hoja, después de los datos.
     fotos_lista: list = []
@@ -475,7 +499,7 @@ def _hoja_actividad(con, act: dict, con_fotos: bool = True,
     if fotos_lista:
         piezas.append(PageBreak())
         piezas += fotos_lista
-        piezas += _firmas_actividad(act, partes)  # la hoja de fotos también va firmada
+        piezas += _firmas_actividad(act, partes, vista_previa=vista_previa)  # la hoja de fotos también va firmada
     return piezas
 
 
@@ -520,6 +544,29 @@ def de_actividades(con: sqlite3.Connection, actividades: list[dict],
                   Paragraph("Aún no tienes actividades capturadas en este periodo.",
                             E["cuerpo"])]
     doc.build(piezas, onFirstPage=_membrete, onLaterPages=_membrete)
+    return buffer.getvalue()
+
+
+def vista_previa(con: sqlite3.Connection, actividades: list[dict],
+                 solo_usuario: int) -> bytes:
+    """Borrador para que el empleado revise que firmó TODAS sus actividades.
+
+    Igual que «mis actividades» pero sin exigir la autorización del responsable, con la
+    marca de agua «VISTA PREVIA» y, al pie de cada hoja, si ya la firmó o le falta.
+    """
+    buffer = io.BytesIO()
+    doc = _documento(buffer)
+    piezas: list = []
+    for i, act in enumerate(actividades):
+        if i:
+            piezas.append(PageBreak())
+        piezas += _hoja_actividad(con, act, con_fotos=True,
+                                  solo_usuario=solo_usuario, vista_previa=True)
+    if not piezas:
+        piezas = [Spacer(1, 20 * mm),
+                  Paragraph("Aún no tienes actividades capturadas en este periodo.",
+                            E["cuerpo"])]
+    doc.build(piezas, onFirstPage=_membrete_previa, onLaterPages=_membrete_previa)
     return buffer.getvalue()
 
 
