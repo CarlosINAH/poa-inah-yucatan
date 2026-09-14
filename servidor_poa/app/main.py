@@ -962,7 +962,7 @@ def pdf_mias(anio: int | None = None, trimestre: int = 0,
     if not actividades:
         raise HTTPException(404, "Aún no tienes actividades autorizadas por el responsable "
                                  "en ese periodo. El PDF se habilita cuando firman tus actividades.")
-    contenido = pdf.de_actividades(con, actividades, con_fotos=True)
+    contenido = pdf.de_actividades(con, actividades, con_fotos=True, solo_usuario=u["id"])
     etiqueta = f"T{trimestre}" if trimestre else "anual"
     return Response(contenido, media_type="application/pdf", headers={
         "Content-Disposition": f'inline; filename="POA_mis_actividades_{anio}_{etiqueta}.pdf"'})
@@ -974,22 +974,26 @@ def pdf_actividad(act_id: int, u: sqlite3.Row = Depends(exigir_sesion),
     act = consolidado.actividad(con, act_id)
     if act is None:
         raise HTTPException(404, "Esa actividad no existe.")
+    # ¿Quien lo pide participa en la actividad? Su ficha muestra sólo su resumen y su
+    # evidencia. Quien no participa (coordinación/responsable) recibe el compilado: un
+    # único resumen, el más extenso.
+    participa = con.execute(
+        "SELECT 1 FROM participaciones WHERE actividad_id = ? AND usuario_id = ?",
+        (act_id, u["id"]),
+    ).fetchone()
     # Un empleado sólo genera el PDF de actividades en las que participa; la
-    # coordinación y los responsables pueden generar el de cualquiera (igual que
-    # el tablero, donde ellos ven toda la Sección y el resto sólo lo suyo).
-    if not (u["es_admin"] or u["es_responsable"]):
-        parte = con.execute(
-            "SELECT 1 FROM participaciones WHERE actividad_id = ? AND usuario_id = ?",
-            (act_id, u["id"]),
-        ).fetchone()
-        if not parte:
-            raise HTTPException(403, "Sólo puedes ver el PDF de tus propias actividades.")
+    # coordinación y los responsables pueden generar el de cualquiera.
+    if not (u["es_admin"] or u["es_responsable"]) and not participa:
+        raise HTTPException(403, "Sólo puedes ver el PDF de tus propias actividades.")
     # El PDF se habilita cuando el responsable firma y autoriza. La coordinación puede
     # verlo antes (supervisión); el resto, sólo una vez autorizada.
     if not consolidado.esta_autorizada(act) and not u["es_admin"]:
         raise HTTPException(403, "El PDF estará disponible cuando el responsable de "
                                  "proyecto firme y autorice esta actividad.")
-    contenido = pdf.individual(con, act_id)
+    if participa:
+        contenido = pdf.individual(con, act_id, solo_usuario=u["id"])
+    else:
+        contenido = pdf.individual(con, act_id, compilado=True)
     return Response(contenido, media_type="application/pdf", headers={
         "Content-Disposition": f'inline; filename="POA_actividad_{act_id}.pdf"'})
 
