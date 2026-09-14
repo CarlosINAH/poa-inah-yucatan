@@ -307,13 +307,15 @@ def _celda_firma(nombre: str, cargo: str, etiqueta: str, firma_archivo: str) -> 
     return t
 
 
-def _firmas_actividad(act: dict) -> list:
+def _firmas_actividad(act: dict, partes: list | None = None) -> list:
     """Bloque de firmas de la hoja: cada ejecutante (participante) y el responsable.
 
     Va al pie de CADA hoja de la actividad (la de datos y la de fotos), para que el
-    informe quede firmado hoja por hoja como pidió la Sección.
+    informe quede firmado hoja por hoja como pidió la Sección. `partes` limita qué
+    ejecutantes firman (p. ej. en la ficha individual, sólo el empleado que la pidió).
     """
-    partes = act.get("participaciones") or []
+    if partes is None:
+        partes = act.get("participaciones") or []
     celdas = [_celda_firma(p["nombre"], p.get("cargo", ""), "Ejecutante", p.get("firma", ""))
               for p in partes]
     ids_ejecutantes = {p.get("usuario_id") for p in partes}
@@ -409,11 +411,31 @@ def _cuadricula_fotos(pares: list) -> list:
     return [t]
 
 
-def _hoja_actividad(con, act: dict, con_fotos: bool = True) -> list:
+def _mas_extenso(partes: list) -> dict:
+    """El participante cuyo resumen es el más largo (para el compilado: uno solo)."""
+    return max(partes, key=lambda p: len((p.get("resumen") or "").strip()))
+
+
+def _hoja_actividad(con, act: dict, con_fotos: bool = True,
+                    solo_usuario: int | None = None, resumen_extenso: bool = False) -> list:
     """Una actividad: hoja de datos (título, ubicación, objetivo, resumen y firmas) y,
     en seguida, una hoja aparte con las fotografías (también firmada). Tras la hoja de
     fotos, el documento continúa con la siguiente actividad en una hoja nueva.
+
+    - `solo_usuario`: la ficha es de ese empleado; sólo su resumen, su evidencia y su
+      firma (además de la del responsable). Es lo que descarga cada quien.
+    - `resumen_extenso`: compilado; se muestra un único resumen, el más largo, pero se
+      conserva la evidencia y las firmas de todos.
     """
+    partes = act.get("participaciones") or []
+    if solo_usuario is not None:
+        partes = [p for p in partes if p.get("usuario_id") == solo_usuario]
+        resumen = partes                       # sólo el suyo
+    elif resumen_extenso and partes:
+        resumen = [_mas_extenso(partes)]       # uno solo, el más extenso
+    else:
+        resumen = partes                       # todos
+
     piezas: list = [
         Paragraph(_esc(act["titulo"]), E["titulo_act"]),
         Paragraph(_esc(f'{act.get("eje", "")}  ·  {_periodo(act["anio"], act.get("trimestre", 0))}'),
@@ -425,9 +447,8 @@ def _hoja_actividad(con, act: dict, con_fotos: bool = True) -> list:
     piezas.append(Paragraph(_esc(act.get("objetivo")) or "—", E["cuerpo"]))
 
     piezas.append(_etiqueta_seccion("Resumen"))
-    partes = act.get("participaciones") or []
-    if partes:
-        for parte in partes:
+    if resumen:
+        for parte in resumen:
             piezas.append(_banda_participante(parte))
             piezas.append(Spacer(1, 2))
             piezas.append(Paragraph(_esc(parte["resumen"]) or "<i>Sin resumen capturado.</i>",
@@ -438,7 +459,7 @@ def _hoja_actividad(con, act: dict, con_fotos: bool = True) -> list:
 
     # Firmas al pie de la hoja de datos. (Se reconstruyen para la hoja de fotos: un mismo
     # flowable no puede dibujarse dos veces en un solo documento.)
-    piezas += _firmas_actividad(act)
+    piezas += _firmas_actividad(act, partes)
 
     # La evidencia fotográfica va en su propia hoja, después de los datos.
     fotos_lista: list = []
@@ -454,13 +475,16 @@ def _hoja_actividad(con, act: dict, con_fotos: bool = True) -> list:
     if fotos_lista:
         piezas.append(PageBreak())
         piezas += fotos_lista
-        piezas += _firmas_actividad(act)  # la hoja de fotos también va firmada
+        piezas += _firmas_actividad(act, partes)  # la hoja de fotos también va firmada
     return piezas
 
 
 # ------------------------------------------------------------------- individual
 
-def individual(con: sqlite3.Connection, act_id: int) -> bytes:
+def individual(con: sqlite3.Connection, act_id: int, solo_usuario: int | None = None,
+               compilado: bool = False) -> bytes:
+    """La ficha de una actividad. `solo_usuario`: sólo el resumen/evidencia de esa
+    persona (su propia ficha). `compilado`: un único resumen, el más extenso."""
     from .consolidado import actividad as leer
     fila = leer(con, act_id)
     act = dict(fila)
@@ -468,17 +492,20 @@ def individual(con: sqlite3.Connection, act_id: int) -> bytes:
 
     buffer = io.BytesIO()
     doc = _documento(buffer)
-    doc.build(_hoja_actividad(con, act, con_fotos=True),
+    doc.build(_hoja_actividad(con, act, con_fotos=True,
+                              solo_usuario=solo_usuario, resumen_extenso=compilado),
               onFirstPage=_membrete, onLaterPages=_membrete)
     return buffer.getvalue()
 
 
 def de_actividades(con: sqlite3.Connection, actividades: list[dict],
-                   con_fotos: bool = True) -> bytes:
+                   con_fotos: bool = True, solo_usuario: int | None = None,
+                   compilado: bool = False) -> bytes:
     """Un PDF con varias actividades: cada una en su hoja de datos + su hoja de fotos.
 
     Lo usa la descarga «mis actividades»: reúne en un solo archivo todo lo que capturó
-    una persona, con la misma hoja por actividad que el informe individual.
+    una persona, con la misma hoja por actividad que el informe individual. `solo_usuario`
+    limita cada hoja al resumen y la evidencia de esa persona.
     """
     buffer = io.BytesIO()
     doc = _documento(buffer)
@@ -486,7 +513,8 @@ def de_actividades(con: sqlite3.Connection, actividades: list[dict],
     for i, act in enumerate(actividades):
         if i:
             piezas.append(PageBreak())
-        piezas += _hoja_actividad(con, act, con_fotos=con_fotos)
+        piezas += _hoja_actividad(con, act, con_fotos=con_fotos,
+                                  solo_usuario=solo_usuario, resumen_extenso=compilado)
     if not piezas:
         piezas = [Spacer(1, 20 * mm),
                   Paragraph("Aún no tienes actividades capturadas en este periodo.",

@@ -189,6 +189,10 @@ está bien comentado y es coherente.
       supervisar). No hay descarga por botón: se abre en el navegador para visualizar.
       La hoja muestra la firma del **ejecutante** y la del **responsable**, con la leyenda
       «Autorizada por X el …».
+- [x] **Resumen individual en la ficha de cada quien**: el PDF que descarga un empleado
+      muestra sólo **su** resumen y su evidencia (no la de los demás participantes). El
+      **compilado** que ve coordinación/responsable muestra un único resumen: el **más
+      extenso** (`solo_usuario` / `compilado` en `pdf.py`).
 - [x] **Una actividad por hoja + hoja de fotos**: `pdf.py` maqueta cada actividad como hoja
       de datos (periodo, qué hizo, ubicación, resumen y firmas) y, en seguida, una hoja aparte
       con las fotografías (también firmada). Tras la hoja de fotos salta de página a la
