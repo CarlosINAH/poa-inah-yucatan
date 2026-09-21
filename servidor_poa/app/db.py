@@ -103,6 +103,10 @@ CREATE TABLE IF NOT EXISTS actividades (
   autorizacion_solicitada TEXT NOT NULL DEFAULT '',   -- fecha en que el empleado la pidió
   autorizada_en      TEXT NOT NULL DEFAULT '',         -- fecha en que el responsable firmó
   autorizada_por     INTEGER REFERENCES usuarios(id),  -- responsable que autorizó
+  -- Papelera: borrado suave. `eliminada_en` marca cuándo se mandó a la papelera; a los
+  -- 30 días se elimina por completo (con sus fotos). NULL/'' = actividad vigente.
+  eliminada_en       TEXT NOT NULL DEFAULT '',
+  eliminada_por      INTEGER REFERENCES usuarios(id),
   creada_por         INTEGER NOT NULL REFERENCES usuarios(id),
   creada_en          TEXT NOT NULL,
   actualizada_en     TEXT NOT NULL
@@ -243,6 +247,11 @@ def _migrar(con: sqlite3.Connection) -> None:
         con.execute("ALTER TABLE actividades ADD COLUMN autorizacion_solicitada TEXT NOT NULL DEFAULT ''")
         con.execute("ALTER TABLE actividades ADD COLUMN autorizada_en TEXT NOT NULL DEFAULT ''")
         con.execute("ALTER TABLE actividades ADD COLUMN autorizada_por INTEGER REFERENCES usuarios(id)")
+
+    # v3.11: papelera (borrado suave con 30 días antes de la eliminación definitiva).
+    if "eliminada_en" not in act_cols:
+        con.execute("ALTER TABLE actividades ADD COLUMN eliminada_en TEXT NOT NULL DEFAULT ''")
+        con.execute("ALTER TABLE actividades ADD COLUMN eliminada_por INTEGER REFERENCES usuarios(id)")
 
     # v3.5: coordenadas de cada zona para el mapa del informe.
     zona_cols = {f["name"] for f in con.execute("PRAGMA table_info(zonas)")}
