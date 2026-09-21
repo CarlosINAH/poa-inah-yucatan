@@ -50,6 +50,7 @@ plantillas = Jinja2Templates(directory=str(BASE / "templates"))
 def _preparar() -> None:
     con = conectar()
     crear_esquema(con)
+    _purgar_papelera(con)   # limpia lo que ya cumplió 30 días en la papelera
     con.close()
 
 
@@ -477,6 +478,7 @@ def detalle(request: Request, act_id: int, u: sqlite3.Row = Depends(exigir_sesio
         "esta_autorizada": consolidado.esta_autorizada(act),
         "soy_participante": mi_parte is not None,
         "tengo_firma": bool(u["firma"]),
+        "puede_borrar": consolidado.puede_borrar(u, act),
     })
 
 
@@ -567,22 +569,82 @@ def agregar_participante(request: Request, act_id: int, usuario_id: int = Form(.
     return RedirectResponse(f"/actividades/{act_id}", status_code=303)
 
 
-@app.post("/actividades/{act_id}/eliminar")
-def eliminar_actividad(request: Request, act_id: int,
-                       u: sqlite3.Row = Depends(exigir_admin),
-                       con: sqlite3.Connection = Depends(bd)):
-    # Sólo coordinación: eliminar arrastra los resúmenes y las fotos de TODOS los
-    # participantes y no se deshace. Como entrar es sólo elegir un nombre de la lista,
-    # dejar esto abierto significaría que un clic equivocado borra el trabajo de otro.
-    act = consolidado.actividad(con, act_id)
-    if act is None:
-        raise HTTPException(404, "Esa actividad no existe.")
+def _borrar_definitivo(con: sqlite3.Connection, act_id: int) -> None:
+    """Borra la actividad y sus fotos de disco. Irreversible; sólo desde la papelera."""
     for archivo in consolidado.archivos_de_actividad(con, act_id):
         fotos_mod.eliminar(archivo)
     con.execute("DELETE FROM actividades WHERE id = ?", (act_id,))
+
+
+def _purgar_papelera(con: sqlite3.Connection) -> None:
+    """Elimina del todo lo que ya cumplió 30 días en la papelera."""
+    vencidas = consolidado.vencidas(con)
+    for aid in vencidas:
+        _borrar_definitivo(con, aid)
+    if vencidas:
+        con.commit()
+
+
+@app.post("/actividades/{act_id}/eliminar")
+def eliminar_actividad(request: Request, act_id: int,
+                       u: sqlite3.Row = Depends(exigir_sesion),
+                       con: sqlite3.Connection = Depends(bd)):
+    """Manda la actividad a la papelera (borrado suave, reversible por 30 días).
+
+    Cada quien puede mandar a la papelera las actividades que registró; la coordinación,
+    las de cualquiera. No se pierde nada de inmediato: vive 30 días en la papelera.
+    """
+    act = consolidado.actividad(con, act_id)
+    if act is None:
+        raise HTTPException(404, "Esa actividad no existe.")
+    if not consolidado.puede_borrar(u, act):
+        raise HTTPException(403, "Sólo puedes enviar a la papelera las actividades que "
+                                 "registraste (o la coordinación).")
+    consolidado.enviar_a_papelera(con, act_id, u["id"])
     con.commit()
-    avisar(request, f"Se eliminó «{act['titulo']}» y sus fotos.")
-    return RedirectResponse("/actividades", status_code=303)
+    avisar(request, f"«{act['titulo']}» se envió a la papelera. Puedes restaurarla "
+                    f"durante {consolidado.DIAS_PAPELERA} días.")
+    return RedirectResponse("/tablero", status_code=303)
+
+
+@app.get("/papelera", response_class=HTMLResponse)
+def papelera(request: Request, u: sqlite3.Row = Depends(exigir_sesion),
+             con: sqlite3.Connection = Depends(bd)):
+    """La papelera: cada quien ve la suya; la coordinación, la de todos."""
+    _purgar_papelera(con)   # aprovecha la visita para limpiar lo vencido
+    items = consolidado.papelera(con, uid=None if u["es_admin"] else u["id"])
+    return vista(request, "papelera.html", {
+        "u": u, "items": items, "dias": consolidado.DIAS_PAPELERA,
+    })
+
+
+@app.post("/actividades/{act_id}/restaurar")
+def restaurar_actividad(request: Request, act_id: int,
+                        u: sqlite3.Row = Depends(exigir_sesion),
+                        con: sqlite3.Connection = Depends(bd)):
+    act = consolidado.actividad(con, act_id)
+    if act is None:
+        raise HTTPException(404, "Esa actividad no existe.")
+    if not consolidado.puede_borrar(u, act):
+        raise HTTPException(403, "No puedes restaurar esta actividad.")
+    consolidado.restaurar(con, act_id)
+    con.commit()
+    avisar(request, f"«{act['titulo']}» se restauró.")
+    return RedirectResponse("/papelera", status_code=303)
+
+
+@app.post("/actividades/{act_id}/eliminar-definitivo")
+def eliminar_definitivo(request: Request, act_id: int,
+                        u: sqlite3.Row = Depends(exigir_admin),
+                        con: sqlite3.Connection = Depends(bd)):
+    """Elimina del todo una actividad de la papelera. Irreversible; sólo coordinación."""
+    act = consolidado.actividad(con, act_id)
+    if act is None:
+        raise HTTPException(404, "Esa actividad no existe.")
+    _borrar_definitivo(con, act_id)
+    con.commit()
+    avisar(request, f"Se eliminó definitivamente «{act['titulo']}» y sus fotos.")
+    return RedirectResponse("/papelera", status_code=303)
 
 
 # ------------------------------------------------------- autorización por firma
@@ -847,7 +909,7 @@ def api_parecidas(titulo: str = "", catalogo_id: int = 0, anio: int = 0,
                   EXISTS(SELECT 1 FROM participaciones p
                           WHERE p.actividad_id = a.id AND p.usuario_id = ?) AS ya_estoy
              FROM actividades a JOIN catalogo_poa c ON c.id = a.catalogo_id
-            WHERE a.anio = ?""",
+            WHERE a.anio = ? AND a.eliminada_en = ''""",
         (u["id"], anio),
     ).fetchall()
 

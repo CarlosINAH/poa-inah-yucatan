@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block titulo %}Papelera{% endblock %}
+{% block encabezado %}Papelera{% endblock %}
+{% block subtitulo %}Las actividades enviadas a la papelera se eliminan por completo a los {{ dias }} días.{% endblock %}
+
+{% block contenido %}
+{% if not items %}
+<section class="card">
+  <div class="empty">
+    <b>La papelera está vacía.</b>
+    <p class="section-desc">Cuando envíes una actividad a la papelera (por duplicada o por
+      no corresponder al periodo), aparecerá aquí y podrás restaurarla durante {{ dias }} días.</p>
+  </div>
+</section>
+{% else %}
+<section class="card">
+  <p class="section-desc" style="margin-bottom:12px">
+    {% if u.es_admin %}Papelera de toda la Sección.{% else %}Tus actividades enviadas a la papelera.{% endif %}
+    Restaura lo que borraste por error{% if u.es_admin %}; la eliminación definitiva es inmediata y no se deshace{% endif %}.
+  </p>
+  <div class="table-wrap">
+    <table class="lista">
+      <thead>
+        <tr>
+          <th>Actividad</th>
+          <th>Periodo</th>
+          <th>Registró</th>
+          <th style="text-align:center">Días restantes</th>
+          <th style="text-align:right">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in items %}
+        <tr>
+          <td>
+            <b>{{ a.titulo }}</b>
+            <div class="mini">{{ a.zona or 'Sin zona' }}</div>
+          </td>
+          <td>T{{ a.trimestre or '—' }} · {{ a.anio }}</td>
+          <td>{{ a.creador_nombre }}</td>
+          <td style="text-align:center">
+            <span class="tag" style="background:#fff3d6;color:#8a6100">{{ a.dias_restantes }} día{{ 's' if a.dias_restantes != 1 else '' }}</span>
+          </td>
+          <td style="text-align:right;white-space:nowrap">
+            <form method="post" action="/actividades/{{ a.id }}/restaurar" style="display:inline">
+              <button class="btn sm primary" type="submit">Restaurar</button>
+            </form>
+            {% if u.es_admin %}
+            <form method="post" action="/actividades/{{ a.id }}/eliminar-definitivo" style="display:inline"
+                  onsubmit="return confirm('Se elimina «{{ a.titulo }}» y sus fotos para siempre. Esto no se deshace. ¿Continuar?')">
+              <button class="btn sm danger" type="submit">Eliminar ya</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

@@ -189,6 +189,13 @@ está bien comentado y es coherente.
       supervisar). No hay descarga por botón: se abre en el navegador para visualizar.
       La hoja muestra la firma del **ejecutante** y la del **responsable**, con la leyenda
       «Autorizada por X el …».
+- [x] **Papelera (borrado suave, 30 días)**: botón «Enviar a la papelera» en la ficha
+      (por duplicadas o fuera de periodo). Cada quien borra sólo las que **registró**
+      (`creada_por`); la coordinación, cualquiera. Van a la pestaña **Papelera** y se pueden
+      **restaurar 30 días**; después se eliminan por completo (fotos incluidas). La purga
+      corre al arrancar y al abrir la papelera. Columnas `eliminada_en`/`eliminada_por`;
+      todas las listas (tablero, consolidado, mis actividades, KPIs, duplicados) filtran
+      `eliminada_en = ''`.
 - [x] **Vista previa para el empleado**: botón «Vista previa (revisar mis firmas)» en el
       tablero (`GET /pdf/mias/vista-previa`). A diferencia del PDF oficial, NO exige la
       autorización del responsable: junta TODAS sus actividades del periodo con la marca de

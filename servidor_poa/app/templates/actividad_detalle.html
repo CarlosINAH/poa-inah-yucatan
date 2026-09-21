@@ -314,14 +314,16 @@
       </p>
     </section>
 
-    {% if u.es_admin %}
+    {% if puede_borrar %}
     <section class="card">
       <form method="post" action="/actividades/{{ act.id }}/eliminar"
-            onsubmit="return confirm('Se elimina la actividad, los resúmenes de todos los participantes y sus fotos. Esto no se deshace. ¿Continuar?')">
-        <button class="btn danger" type="submit">Eliminar actividad</button>
+            onsubmit="return confirm('Se enviará a la papelera. Podrás restaurarla durante 30 días; después se elimina por completo. ¿Continuar?')">
+        <button class="btn danger" type="submit">Enviar a la papelera</button>
         <p class="muted" style="font-size:11px;margin-top:8px">
-          Borra también lo que aportaron los demás participantes, por eso sólo lo
-          puede hacer la coordinación.
+          Úsalo si la registraste dos veces o no corresponde al periodo. No se pierde de
+          inmediato: vive <b>30 días</b> en la <a href="/papelera">papelera</a> y se puede
+          restaurar.{% if partes | length > 1 %} Ojo: esta actividad tiene varios
+          participantes.{% endif %}
         </p>
       </form>
     </section>

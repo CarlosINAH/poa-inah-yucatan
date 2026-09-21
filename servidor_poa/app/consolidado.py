@@ -8,9 +8,11 @@ mismo mural, el POA reporta 1, y las tres aparecen como participantes.
 from __future__ import annotations
 
 import sqlite3
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from .db import ahora, norm
+
+DIAS_PAPELERA = 30   # días que una actividad vive en la papelera antes de borrarse del todo
 
 CAMPOS_ACTIVIDAD = (
     "titulo", "catalogo_id", "zona", "municipio", "fuera_estado",
@@ -106,7 +108,7 @@ def canonizar_zona(con: sqlite3.Connection, zona: str) -> str:
 
 def anios_disponibles(con: sqlite3.Connection) -> list[int]:
     filas = [f["anio"] for f in con.execute(
-        "SELECT DISTINCT anio FROM actividades ORDER BY anio DESC")]
+        "SELECT DISTINCT anio FROM actividades WHERE eliminada_en = '' ORDER BY anio DESC")]
     hoy = date.today().year
     if hoy not in filas:
         filas.insert(0, hoy)
@@ -114,7 +116,7 @@ def anios_disponibles(con: sqlite3.Connection) -> list[int]:
 
 
 def anio_por_defecto(con: sqlite3.Connection) -> int:
-    fila = con.execute("SELECT MAX(anio) a FROM actividades").fetchone()
+    fila = con.execute("SELECT MAX(anio) a FROM actividades WHERE eliminada_en = ''").fetchone()
     return fila["a"] or date.today().year
 
 
@@ -153,6 +155,63 @@ def puede_editar(u: sqlite3.Row, act: sqlite3.Row) -> bool:
     El resumen y las fotos de cada quien son otra cosa: eso siempre es del dueño."""
     return bool(u["es_admin"] or act["creada_por"] == u["id"]
                 or (act["responsable_id"] and act["responsable_id"] == u["id"]))
+
+
+# ------------------------------------------------------------------------- papelera
+
+def puede_borrar(u: sqlite3.Row, act) -> bool:
+    """A la papelera la manda quien creó la actividad; la coordinación, cualquiera."""
+    creador = act["creada_por"] if not isinstance(act, dict) else act.get("creada_por")
+    return bool(u["es_admin"] or creador == u["id"])
+
+
+def _dias_restantes(eliminada_en: str) -> int:
+    """Días que faltan para la eliminación definitiva (0 si ya venció)."""
+    try:
+        t = datetime.fromisoformat(eliminada_en)
+    except (ValueError, TypeError):
+        return DIAS_PAPELERA
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+    faltan = (t + timedelta(days=DIAS_PAPELERA) - datetime.now(timezone.utc)).days
+    return max(faltan, 0)
+
+
+def enviar_a_papelera(con: sqlite3.Connection, act_id: int, uid: int) -> None:
+    con.execute(
+        "UPDATE actividades SET eliminada_en = ?, eliminada_por = ? "
+        "WHERE id = ? AND eliminada_en = ''", (ahora(), uid, act_id))
+
+
+def restaurar(con: sqlite3.Connection, act_id: int) -> None:
+    con.execute(
+        "UPDATE actividades SET eliminada_en = '', eliminada_por = NULL WHERE id = ?",
+        (act_id,))
+
+
+def papelera(con: sqlite3.Connection, uid: int | None = None) -> list[dict]:
+    """Actividades en la papelera. Con `uid`, sólo las que esa persona creó o mandó
+    (cada quien ve su propia papelera; la coordinación, la de todos)."""
+    cond, params = ["a.eliminada_en != ''"], []
+    if uid is not None:
+        cond.append("(a.creada_por = ? OR a.eliminada_por = ?)")
+        params += [uid, uid]
+    filas = con.execute(
+        _SELECT_ACTIVIDAD + " WHERE " + " AND ".join(cond)
+        + " ORDER BY a.eliminada_en DESC", params).fetchall()
+    salida = []
+    for f in filas:
+        act = dict(f)
+        act["dias_restantes"] = _dias_restantes(act["eliminada_en"])
+        salida.append(act)
+    return salida
+
+
+def vencidas(con: sqlite3.Connection) -> list[int]:
+    """IDs de las actividades que ya cumplieron 30 días en la papelera (a borrar del todo)."""
+    limite = (datetime.now(timezone.utc) - timedelta(days=DIAS_PAPELERA)).isoformat(timespec="seconds")
+    return [f["id"] for f in con.execute(
+        "SELECT id FROM actividades WHERE eliminada_en != '' AND eliminada_en <= ?", (limite,))]
 
 
 # --------------------------------------------------------------- autorización por firma
@@ -195,7 +254,7 @@ def pendientes_para(con: sqlite3.Connection, uid: int, anio: int | None = None) 
     Devuelve, p. ej.: «Jareth solicitó firma de 3 actividades de las que eres responsable».
     """
     condiciones = ["a.responsable_id = ?", "a.autorizacion_solicitada != ''",
-                   "a.autorizada_en = ''"]
+                   "a.autorizada_en = ''", "a.eliminada_en = ''"]
     params: list = [uid]
     if anio:
         condiciones.append("a.anio = ?")
@@ -219,14 +278,15 @@ def pendientes_para(con: sqlite3.Connection, uid: int, anio: int | None = None) 
 def cuenta_pendientes(con: sqlite3.Connection, uid: int) -> int:
     return con.execute(
         "SELECT COUNT(*) c FROM actividades "
-        "WHERE responsable_id = ? AND autorizacion_solicitada != '' AND autorizada_en = ''",
+        "WHERE responsable_id = ? AND autorizacion_solicitada != '' AND autorizada_en = '' "
+        "AND eliminada_en = ''",
         (uid,)).fetchone()["c"]
 
 
 def buscar(con: sqlite3.Connection, anio: int, texto: str = "", zona: str = "",
            trimestre: int = 0, solo_de: int | None = None) -> list[dict]:
     """La lista del tablero. `solo_de` limita a las actividades de una persona."""
-    condiciones, params = ["a.anio = ?"], [anio]
+    condiciones, params = ["a.anio = ?", "a.eliminada_en = ''"], [anio]
     if texto.strip():
         condiciones.append("(a.titulo_norm LIKE ? OR c.actividad_poa LIKE ?)")
         params += [f"%{norm(texto)}%", f"%{texto.strip()}%"]
@@ -266,7 +326,7 @@ def actividades_de(con: sqlite3.Connection, uid: int, anio: int,
     Es lo que alimenta la descarga «mis actividades»: cada quien se lleva en un PDF todo
     lo que capturó, con la hoja por actividad del informe individual.
     """
-    condiciones = ["a.anio = ?",
+    condiciones = ["a.anio = ?", "a.eliminada_en = ''",
                    "EXISTS (SELECT 1 FROM participaciones p "
                    "WHERE p.actividad_id = a.id AND p.usuario_id = ?)"]
     params: list = [anio, uid]
@@ -348,16 +408,16 @@ def kpis(con: sqlite3.Connection, anio: int) -> dict:
                   COALESCE(SUM(MAX(planeado_anual,
                                    plan_t1 + plan_t2 + plan_t3 + plan_t4)), 0) planeado,
                   COALESCE(SUM(inf_t1 + inf_t2 + inf_t3 + inf_t4), 0) informado
-             FROM actividades WHERE anio = ?""", (anio,)).fetchone()
+             FROM actividades WHERE anio = ? AND eliminada_en = ''""", (anio,)).fetchone()
     personas = con.execute(
         """SELECT COUNT(DISTINCT p.usuario_id) c
              FROM participaciones p JOIN actividades a ON a.id = p.actividad_id
-            WHERE a.anio = ?""", (anio,)).fetchone()["c"]
+            WHERE a.anio = ? AND a.eliminada_en = ''""", (anio,)).fetchone()["c"]
     colaborativas = con.execute(
         """SELECT COUNT(*) c FROM (
               SELECT p.actividad_id FROM participaciones p
                 JOIN actividades a ON a.id = p.actividad_id
-               WHERE a.anio = ?
+               WHERE a.anio = ? AND a.eliminada_en = ''
                GROUP BY p.actividad_id HAVING COUNT(*) > 1)""", (anio,)).fetchone()["c"]
     planeado, informado = fila["planeado"], fila["informado"]
     return {
@@ -372,7 +432,7 @@ def kpis(con: sqlite3.Connection, anio: int) -> dict:
 
 def armar(con: sqlite3.Connection, anio: int, trimestre: int, agrupar: str) -> list[dict]:
     """Agrupa las actividades del periodo por zona o por eje, con sus participantes."""
-    condiciones, params = ["a.anio = ?"], [anio]
+    condiciones, params = ["a.anio = ?", "a.eliminada_en = ''"], [anio]
     if trimestre in (1, 2, 3, 4):
         condiciones.append("a.trimestre = ?")
         params.append(trimestre)
