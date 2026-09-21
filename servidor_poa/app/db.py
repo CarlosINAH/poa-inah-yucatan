@@ -253,6 +253,11 @@ def _migrar(con: sqlite3.Connection) -> None:
         con.execute("ALTER TABLE actividades ADD COLUMN eliminada_en TEXT NOT NULL DEFAULT ''")
         con.execute("ALTER TABLE actividades ADD COLUMN eliminada_por INTEGER REFERENCES usuarios(id)")
 
+    # Corrección de nombre: los apellidos van «Calderón Magallón» (estaban invertidos).
+    # Idempotente: tras aplicarse una vez, el WHERE ya no encuentra nada. No toca el login.
+    con.execute("UPDATE usuarios SET nombre = 'Gerardo Calderón Magallón' "
+                "WHERE nombre = 'Gerardo Magallón Calderón'")
+
     # v3.5: coordenadas de cada zona para el mapa del informe.
     zona_cols = {f["name"] for f in con.execute("PRAGMA table_info(zonas)")}
     if "lat" not in zona_cols:
