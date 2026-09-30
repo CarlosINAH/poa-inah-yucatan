@@ -287,10 +287,11 @@ def buscar(con: sqlite3.Connection, anio: int, texto: str = "", zona: str = "",
            trimestre: int = 0, solo_de: int | None = None,
            relacion: str | None = None) -> list[dict]:
     """La lista del tablero. `solo_de` limita a las actividades de una persona y
-    `relacion` dice de qué tipo:
-      - 'mias': las que esa persona registró o a las que se sumó ella misma (confirmadas).
-      - 'compartidas': aquellas donde OTRA persona la etiquetó (no rechazadas), que es
-        donde confirma si participó.
+    `relacion` dice de qué tipo, según QUIÉN creó la actividad (fiable también para los
+    datos previos, que no guardaban quién etiquetó):
+      - 'mias': actividades que creó esa persona (donde participa confirmada).
+      - 'compartidas': actividades creadas por otra persona en las que aparece (no
+        rechazadas); ahí confirma si participó.
     Sin `relacion`, cualquier actividad en la que aparezca (para conteos internos)."""
     condiciones, params = ["a.anio = ?", "a.eliminada_en = ''"], [anio]
     if texto.strip():
@@ -303,19 +304,22 @@ def buscar(con: sqlite3.Connection, anio: int, texto: str = "", zona: str = "",
         condiciones.append("a.trimestre = ?")
         params.append(trimestre)
     if solo_de:
-        sub = ("EXISTS (SELECT 1 FROM participaciones p "
-               "WHERE p.actividad_id = a.id AND p.usuario_id = ?")
-        params.append(solo_de)
         if relacion == "mias":
-            # Registradas por ella o auto-sumadas (los datos previos, sin etiquetador
-            # conocido, también son suyas). Sólo las confirmadas.
-            sub += (" AND p.estado = 'confirmada' "
-                    "AND (p.agregada_por IS NULL OR p.agregada_por = p.usuario_id)")
+            # Las que creó esta persona (donde participa confirmada).
+            condiciones.append(
+                "a.creada_por = ? AND EXISTS (SELECT 1 FROM participaciones p "
+                "WHERE p.actividad_id = a.id AND p.usuario_id = ? AND p.estado = 'confirmada')")
+            params += [solo_de, solo_de]
         elif relacion == "compartidas":
-            # Donde otra persona la metió y no la ha rechazado.
-            sub += (" AND p.estado <> 'rechazada' "
-                    "AND p.agregada_por IS NOT NULL AND p.agregada_por <> p.usuario_id")
-        condiciones.append(sub + ")")
+            # Creadas por OTRA persona pero donde ésta aparece sin haber rechazado.
+            condiciones.append(
+                "a.creada_por <> ? AND EXISTS (SELECT 1 FROM participaciones p "
+                "WHERE p.actividad_id = a.id AND p.usuario_id = ? AND p.estado <> 'rechazada')")
+            params += [solo_de, solo_de]
+        else:
+            condiciones.append("EXISTS (SELECT 1 FROM participaciones p "
+                               "WHERE p.actividad_id = a.id AND p.usuario_id = ?)")
+            params.append(solo_de)
 
     filas = con.execute(
         _SELECT_ACTIVIDAD + " WHERE " + " AND ".join(condiciones)
@@ -344,13 +348,13 @@ def cuenta_compartidas(con: sqlite3.Connection, uid: int, anio: int) -> int:
         """SELECT COUNT(*) c FROM participaciones p
              JOIN actividades a ON a.id = p.actividad_id
             WHERE p.usuario_id = ? AND p.estado = 'pendiente'
-              AND p.agregada_por IS NOT NULL AND p.agregada_por <> p.usuario_id
-              AND a.anio = ? AND a.eliminada_en = ''""", (uid, anio)).fetchone()["c"]
+              AND a.creada_por <> ?
+              AND a.anio = ? AND a.eliminada_en = ''""", (uid, uid, anio)).fetchone()["c"]
 
 
 def mis_compartidas_info(con: sqlite3.Connection, uid: int,
                          anio: int) -> dict[int, dict]:
-    """Por actividad compartida (otra persona etiquetó a ésta), su participación, quién
+    """Por actividad compartida (creada por otra persona), la participación de ésta, quién
     la etiquetó y su estado. Alimenta los botones «Sí participé / No participé»."""
     filas = con.execute(
         """SELECT p.id AS parte_id, p.actividad_id, p.estado, ag.nombre AS por
@@ -358,8 +362,8 @@ def mis_compartidas_info(con: sqlite3.Connection, uid: int,
              JOIN actividades a ON a.id = p.actividad_id
         LEFT JOIN usuarios ag ON ag.id = p.agregada_por
             WHERE p.usuario_id = ? AND p.estado <> 'rechazada'
-              AND p.agregada_por IS NOT NULL AND p.agregada_por <> p.usuario_id
-              AND a.anio = ? AND a.eliminada_en = ''""", (uid, anio)).fetchall()
+              AND a.creada_por <> ?
+              AND a.anio = ? AND a.eliminada_en = ''""", (uid, uid, anio)).fetchall()
     return {f["actividad_id"]: {"parte_id": f["parte_id"], "por": f["por"],
                                 "estado": f["estado"]} for f in filas}
 
