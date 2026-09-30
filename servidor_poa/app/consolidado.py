@@ -376,7 +376,7 @@ def participacion(con: sqlite3.Connection, parte_id: int) -> sqlite3.Row | None:
 
 def participaciones(con: sqlite3.Connection, act_id: int) -> list[dict]:
     filas = con.execute(
-        """SELECT p.*, u.nombre, u.cargo, u.grupo, u.firma
+        """SELECT p.*, u.nombre, u.cargo, u.grupo, u.firma, u.es_responsable
              FROM participaciones p JOIN usuarios u ON u.id = p.usuario_id
             WHERE p.actividad_id = ?
             ORDER BY p.creada_en""", (act_id,)).fetchall()
