@@ -19,8 +19,9 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
-from reportlab.platypus import (Image, KeepTogether, PageBreak, Paragraph,
-                                SimpleDocTemplate, Spacer, Table, TableStyle)
+from reportlab.platypus import (Flowable, Image, KeepTogether, PageBreak,
+                                Paragraph, SimpleDocTemplate, Spacer, Table,
+                                TableStyle)
 
 from .consolidado import participaciones
 from .db import FIRMAS_DIR, FOTOS_DIR, TRIMESTRES
@@ -79,6 +80,12 @@ E = {
 }
 
 _MAPA_LADO_ANCHO = 64 * mm        # ancho del mapa cuando va al lado del objetivo
+
+# Las firmas se anclan al pie de cada hoja (no fluyen con el contenido) para que no se
+# muevan y la hoja de fotos quede sólo con las fotos.
+_PIE_BASE = 16 * mm               # base del bloque de firmas, justo encima del pie de página
+_PIE_X = 18 * mm                  # margen izquierdo, igual que el membrete
+_PIE_ANCHO = 174 * mm             # ancho del bloque de firmas (3 casillas de 58 mm)
 
 # Cuántas fotos lleva la hoja de evidencia del informe colectivo (compilado): se
 # eligen al azar del total que compartieron todos los participantes. En la ficha
@@ -143,13 +150,31 @@ def _membrete_previa(canvas, doc):
     canvas.restoreState()
 
 
-def _documento(buffer) -> SimpleDocTemplate:
+def _documento(buffer, bottom_margin: float = 18 * mm) -> SimpleDocTemplate:
     return SimpleDocTemplate(
         buffer, pagesize=letter,
         leftMargin=18 * mm, rightMargin=18 * mm,
-        topMargin=24 * mm, bottomMargin=18 * mm,
+        topMargin=24 * mm, bottomMargin=bottom_margin,
         title="Informe POA", author=INSTITUCION,
     )
+
+
+def _construir(piezas: list, altos_firmas: list, membrete) -> bytes:
+    """Arma el PDF reservando al pie la banda que necesitan las firmas ancladas.
+
+    El margen inferior se agranda hasta librar el bloque de firmas más alto del documento,
+    para que el contenido no se encime con las firmas que se pintan al pie de cada hoja.
+    """
+    reserva = max(altos_firmas) if altos_firmas else 0.0
+    bottom = (_PIE_BASE + reserva + 4 * mm) if reserva else 18 * mm
+    buffer = io.BytesIO()
+    doc = _documento(buffer, bottom_margin=bottom)
+    if not piezas:
+        piezas = [Spacer(1, 20 * mm),
+                  Paragraph("Aún no tienes actividades capturadas en este periodo.",
+                            E["cuerpo"])]
+    doc.build(piezas, onFirstPage=membrete, onLaterPages=membrete)
+    return buffer.getvalue()
 
 
 # ------------------------------------------------------------------- fragmentos
@@ -376,14 +401,11 @@ def _celda_firma(nombre: str, cargo: str, etiqueta: str, firma_archivo: str) -> 
     return t
 
 
-def _firmas_actividad(act: dict, partes: list | None = None,
+def _firmas_contenido(act: dict, partes: list | None = None,
                       vista_previa: bool = False) -> list:
-    """Bloque de firmas de la hoja: cada ejecutante (participante) y el responsable.
-
-    Va al pie de CADA hoja de la actividad (la de datos y la de fotos), para que el
-    informe quede firmado hoja por hoja como pidió la Sección. `partes` limita qué
-    ejecutantes firman (p. ej. en la ficha individual, sólo el empleado que la pidió).
-    """
+    """Las piezas del bloque de firmas: cada ejecutante (participante) y el responsable,
+    más la leyenda de autorización. `partes` limita qué ejecutantes firman (p. ej. en la
+    ficha individual, sólo el empleado que la pidió). Devuelve [] si no hay quién firme."""
     if partes is None:
         partes = act.get("participaciones") or []
     celdas = [_celda_firma(p["nombre"], p.get("cargo", ""), "Ejecutante", p.get("firma", ""))
@@ -404,7 +426,7 @@ def _firmas_actividad(act: dict, partes: list | None = None,
     t.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("TOPPADDING", (0, 0), (-1, -1), 7), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
     ]))
 
     if act.get("autorizada_en"):
@@ -413,7 +435,7 @@ def _firmas_actividad(act: dict, partes: list | None = None,
     else:
         leyenda = "Pendiente de autorización del responsable de proyecto."
 
-    piezas = [Spacer(1, 4 * mm), _etiqueta_seccion("Firmas"), t]
+    piezas = [_etiqueta_seccion("Firmas"), t]
     if vista_previa:
         # En el borrador, lo que importa es que el empleado confirme SU firma.
         if act.get("autorizacion_solicitada") or act.get("autorizada_en"):
@@ -423,6 +445,54 @@ def _firmas_actividad(act: dict, partes: list | None = None,
         piezas.append(Paragraph(estado, E["pie_foto"]))
     piezas.append(Paragraph(leyenda, E["pie_foto"]))
     return piezas
+
+
+def _bloque_firmas(act: dict, partes: list | None = None,
+                   vista_previa: bool = False):
+    """El bloque de firmas como un solo flowable apilado, o None si no hay quién firme."""
+    contenido = _firmas_contenido(act, partes, vista_previa)
+    if not contenido:
+        return None
+    t = Table([[c] for c in contenido], colWidths=[_PIE_ANCHO])
+    t.setStyle(TableStyle([
+        ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    return t
+
+
+def _alto_firmas(act: dict, partes: list | None = None,
+                 vista_previa: bool = False) -> float:
+    """Alto que ocupará el bloque de firmas, para reservarle su banda al pie de la hoja."""
+    bloque = _bloque_firmas(act, partes, vista_previa)
+    return bloque.wrap(_PIE_ANCHO, 200 * mm)[1] if bloque is not None else 0.0
+
+
+class _PieFirmas(Flowable):
+    """Ancla el bloque de firmas al pie de la hoja donde se dibuja este flowable.
+
+    Mide (0, 0): no ocupa lugar en el flujo. Las firmas se pintan directamente sobre el
+    lienzo, en la banda reservada al pie, así no se mueven con el contenido y la hoja de
+    fotos queda sólo con las fotos. Se coloca junto a lo que debe ir firmado (la hoja de
+    datos y cada grupo de fotos), de modo que cada hoja del informe salga firmada.
+    """
+
+    def __init__(self, hacer_bloque):
+        super().__init__()
+        self._hacer = hacer_bloque
+
+    def wrap(self, ancho_disp, alto_disp):
+        return (0, 0)
+
+    def draw(self):
+        bloque = self._hacer()
+        if bloque is None:
+            return
+        bloque.wrapOn(self.canv, _PIE_ANCHO, 60 * mm)
+        # Al dibujar un flowable el lienzo está trasladado a su posición en la página, así
+        # que convertimos el punto de anclaje del pie (absoluto) a coordenadas locales.
+        ax, ay = self.canv.absolutePosition(0, 0)
+        bloque.drawOn(self.canv, _PIE_X - ax, _PIE_BASE - ay)
 
 
 def _etiqueta_seccion(texto: str) -> Paragraph:
@@ -532,10 +602,13 @@ def _fotos_para_evidencia(partes: list, act: dict,
 
 def _hoja_actividad(con, act: dict, con_fotos: bool = True,
                     solo_usuario: int | None = None, resumen_extenso: bool = False,
-                    vista_previa: bool = False, fotos_azar: int | None = None) -> list:
-    """Una actividad: hoja de datos (Ficha POA, cifras, objetivo, resumen y firmas) y,
-    en seguida, una hoja aparte con las fotografías (también firmada). Tras la hoja de
+                    vista_previa: bool = False, fotos_azar: int | None = None) -> tuple[list, float]:
+    """Una actividad: hoja de datos (Ficha POA, cifras, objetivo, resumen) y, en seguida,
+    una hoja aparte sólo con las fotografías. Las firmas van ancladas al pie de cada hoja,
+    fuera del flujo, para que no se muevan y la hoja de fotos quede limpia. Tras la hoja de
     fotos, el documento continúa con la siguiente actividad en una hoja nueva.
+
+    Devuelve (piezas, alto_firmas): el alto sirve para reservarle su banda al pie.
 
     - `solo_usuario`: la ficha es de ese empleado; sólo su resumen, su evidencia y su
       firma (además de la del responsable). Es lo que descarga cada quien.
@@ -559,7 +632,13 @@ def _hoja_actividad(con, act: dict, con_fotos: bool = True,
     if fotos_azar is None and resumen_extenso and solo_usuario is None:
         fotos_azar = FOTOS_AZAR_COLECTIVO
 
+    # El pie de firmas se reconstruye cada vez que se dibuja (un mismo flowable no puede
+    # pintarse dos veces), así que se ancla con una fábrica y va en cada hoja firmada.
+    hacer_firmas = lambda: _bloque_firmas(act, partes, vista_previa=vista_previa)
+    alto_firmas = _alto_firmas(act, partes, vista_previa=vista_previa)
+
     piezas: list = [
+        _PieFirmas(hacer_firmas),              # firma al pie de la hoja de datos
         Paragraph(_esc(act["titulo"]), E["titulo_act"]),
         Paragraph(_esc(f'{act.get("eje", "")}  ·  {_periodo(act["anio"], act.get("trimestre", 0))}'),
                   E["meta_act"]),
@@ -581,25 +660,23 @@ def _hoja_actividad(con, act: dict, con_fotos: bool = True,
     else:
         piezas.append(Paragraph("<i>Sin resumen capturado.</i>", E["cuerpo"]))
 
-    # Firmas al pie de la hoja de datos. (Se reconstruyen para la hoja de fotos: un mismo
-    # flowable no puede dibujarse dos veces en un solo documento.)
-    piezas += _firmas_actividad(act, partes, vista_previa=vista_previa)
-
-    # La evidencia fotográfica va en su propia hoja, después de los datos.
-    fotos_lista: list = []
+    # La evidencia fotográfica va en su propia hoja, sólo con las fotos. Cada grupo (2×2)
+    # lleva su propio ancla de firmas, dentro del mismo KeepTogether, para que la firma
+    # acompañe a las fotos a la hoja en que caigan (aunque sean varias hojas).
+    grupos: list = []
     if con_fotos:
         todas = _fotos_para_evidencia(partes, act, fotos_azar)
-        if todas:
-            fotos_lista.append(_etiqueta_seccion("Evidencia fotográfica"))
-            for i in range(0, len(todas), 4):
-                grupo = _cuadricula_fotos(todas[i:i + 4])
-                if grupo:
-                    fotos_lista.append(KeepTogether(grupo))
-    if fotos_lista:
+        for i in range(0, len(todas), 4):
+            grupo = _cuadricula_fotos(todas[i:i + 4])
+            if grupo:
+                grupos.append(grupo[0])
+    if grupos:
         piezas.append(PageBreak())
-        piezas += fotos_lista
-        piezas += _firmas_actividad(act, partes, vista_previa=vista_previa)  # la hoja de fotos también va firmada
-    return piezas
+        piezas.append(KeepTogether([_PieFirmas(hacer_firmas),
+                                    _etiqueta_seccion("Evidencia fotográfica"), grupos[0]]))
+        for g in grupos[1:]:
+            piezas.append(KeepTogether([_PieFirmas(hacer_firmas), g]))
+    return piezas, alto_firmas
 
 
 # ------------------------------------------------------------------- individual
@@ -613,12 +690,9 @@ def individual(con: sqlite3.Connection, act_id: int, solo_usuario: int | None = 
     act = dict(fila)
     act["participaciones"] = participaciones(con, act_id)
 
-    buffer = io.BytesIO()
-    doc = _documento(buffer)
-    doc.build(_hoja_actividad(con, act, con_fotos=True,
-                              solo_usuario=solo_usuario, resumen_extenso=compilado),
-              onFirstPage=_membrete, onLaterPages=_membrete)
-    return buffer.getvalue()
+    piezas, alto = _hoja_actividad(con, act, con_fotos=True,
+                                   solo_usuario=solo_usuario, resumen_extenso=compilado)
+    return _construir(piezas, [alto], _membrete)
 
 
 def de_actividades(con: sqlite3.Connection, actividades: list[dict],
@@ -630,20 +704,16 @@ def de_actividades(con: sqlite3.Connection, actividades: list[dict],
     una persona, con la misma hoja por actividad que el informe individual. `solo_usuario`
     limita cada hoja al resumen y la evidencia de esa persona.
     """
-    buffer = io.BytesIO()
-    doc = _documento(buffer)
     piezas: list = []
+    altos: list = []
     for i, act in enumerate(actividades):
         if i:
             piezas.append(PageBreak())
-        piezas += _hoja_actividad(con, act, con_fotos=con_fotos,
+        p, alto = _hoja_actividad(con, act, con_fotos=con_fotos,
                                   solo_usuario=solo_usuario, resumen_extenso=compilado)
-    if not piezas:
-        piezas = [Spacer(1, 20 * mm),
-                  Paragraph("Aún no tienes actividades capturadas en este periodo.",
-                            E["cuerpo"])]
-    doc.build(piezas, onFirstPage=_membrete, onLaterPages=_membrete)
-    return buffer.getvalue()
+        piezas += p
+        altos.append(alto)
+    return _construir(piezas, altos, _membrete)
 
 
 def vista_previa(con: sqlite3.Connection, actividades: list[dict],
@@ -653,20 +723,16 @@ def vista_previa(con: sqlite3.Connection, actividades: list[dict],
     Igual que «mis actividades» pero sin exigir la autorización del responsable, con la
     marca de agua «VISTA PREVIA» y, al pie de cada hoja, si ya la firmó o le falta.
     """
-    buffer = io.BytesIO()
-    doc = _documento(buffer)
     piezas: list = []
+    altos: list = []
     for i, act in enumerate(actividades):
         if i:
             piezas.append(PageBreak())
-        piezas += _hoja_actividad(con, act, con_fotos=True,
+        p, alto = _hoja_actividad(con, act, con_fotos=True,
                                   solo_usuario=solo_usuario, vista_previa=True)
-    if not piezas:
-        piezas = [Spacer(1, 20 * mm),
-                  Paragraph("Aún no tienes actividades capturadas en este periodo.",
-                            E["cuerpo"])]
-    doc.build(piezas, onFirstPage=_membrete_previa, onLaterPages=_membrete_previa)
-    return buffer.getvalue()
+        piezas += p
+        altos.append(alto)
+    return _construir(piezas, altos, _membrete_previa)
 
 
 # ------------------------------------------------------------------ consolidado
