@@ -338,9 +338,13 @@ def tablero(request: Request, anio: int | None = None, trimestre: int = 0, q: st
     anio = anio or consolidado.anio_por_defecto(con)
     puede_todas = bool(u["es_admin"] or u["es_responsable"])
     ver = ver if ver in ("mias", "compartidas", "todas", "empleado") else "mias"
-    if ver in ("todas", "empleado") and not puede_todas:
+    if ver == "todas" and not puede_todas:
         ver = "mias"
-    empleado = empleado if (ver == "empleado" and puede_todas) else 0
+    # «Por empleado» (ver el perfil de cada quien y descargar su PDF) es de la coordinación:
+    # ve los resúmenes de todas las actividades de la persona.
+    if ver == "empleado" and not u["es_admin"]:
+        ver = "todas" if puede_todas else "mias"
+    empleado = empleado if (ver == "empleado" and u["es_admin"]) else 0
 
     empleado_nombre = ""
     if ver == "empleado":
@@ -370,7 +374,7 @@ def tablero(request: Request, anio: int | None = None, trimestre: int = 0, q: st
         "u": u, "anio": anio, "trimestre": trimestre, "q": q, "zona": zona, "ver": ver,
         "puede_todas": puede_todas,
         "empleado": empleado, "empleado_nombre": empleado_nombre,
-        "empleados": consolidado.usuarios(con) if puede_todas else [],
+        "empleados": consolidado.usuarios(con) if u["es_admin"] else [],
         "n_compartidas": consolidado.cuenta_compartidas(con, u["id"], anio),
         "anios": consolidado.anios_disponibles(con),
         "trimestres": TRIMESTRES,
@@ -524,6 +528,9 @@ def detalle(request: Request, act_id: int, u: sqlite3.Row = Depends(exigir_sesio
     return vista(request, "actividad_detalle.html", {
         "u": u, "act": act, "partes": partes, "confirmados": confirmados,
         "mi_parte": mi_parte,
+        # Resúmenes: cada quien ve el suyo; la coordinación y el responsable de la
+        # actividad ven los de todos y pueden dejar notas.
+        "ver_resumenes": _es_revisor(u, act),
         "puede_editar": consolidado.puede_editar(u, act),
         "puede_agregar": puede_agregar, "agregables": agregables,
         "max_fotos": fotos_mod.MAX_FOTOS_POR_PARTICIPACION,
@@ -678,6 +685,32 @@ def rechazar_participacion(request: Request, parte_id: int, volver: str = Form("
                     "puede volver a etiquetarte.")
     return RedirectResponse(_destino_seguro(volver, "/tablero?ver=compartidas"),
                             status_code=303)
+
+
+def _es_revisor(u: sqlite3.Row, act) -> bool:
+    """Quién revisa una actividad: la coordinación o el responsable de proyecto de ESA
+    actividad. Son los que ven los resúmenes de todos y pueden dejar notas."""
+    resp = act["responsable_id"] if not isinstance(act, dict) else act.get("responsable_id")
+    return bool(u["es_admin"] or (resp and resp == u["id"]))
+
+
+@app.post("/participaciones/{parte_id}/nota")
+def guardar_nota(request: Request, parte_id: int, nota: str = Form(""),
+                 u: sqlite3.Row = Depends(exigir_sesion),
+                 con: sqlite3.Connection = Depends(bd)):
+    """El responsable de proyecto o la coordinación deja una nota al empleado sobre su
+    resumen. El empleado la ve en su participación."""
+    parte = consolidado.participacion(con, parte_id)
+    if parte is None:
+        raise HTTPException(404, "Esa participación no existe.")
+    act = consolidado.actividad(con, parte["actividad_id"])
+    if not _es_revisor(u, act):
+        raise HTTPException(403, "Sólo la coordinación o el responsable de proyecto de la "
+                                 "actividad puede dejar notas.")
+    consolidado.guardar_nota(con, parte_id, nota, u["id"])
+    con.commit()
+    avisar(request, "Nota guardada." if nota.strip() else "Nota eliminada.")
+    return RedirectResponse(f"/actividades/{parte['actividad_id']}", status_code=303)
 
 
 def _borrar_definitivo(con: sqlite3.Connection, act_id: int) -> None:
@@ -1174,10 +1207,10 @@ def pdf_mias(anio: int | None = None, trimestre: int = 0,
 
 @app.get("/pdf/empleado/{uid}")
 def pdf_empleado(uid: int, anio: int | None = None, trimestre: int = 0,
-                 u: sqlite3.Row = Depends(exigir_consolidado),
+                 u: sqlite3.Row = Depends(exigir_admin),
                  con: sqlite3.Connection = Depends(bd)):
-    """La coordinación (o un responsable) descarga el PDF de un empleado: sus actividades
-    del periodo con su resumen y su evidencia, una hoja por actividad."""
+    """La coordinación descarga el PDF de un empleado: sus actividades del periodo con su
+    resumen y su evidencia, una hoja por actividad."""
     persona = con.execute("SELECT id, nombre FROM usuarios WHERE id = ?", (uid,)).fetchone()
     if persona is None:
         raise HTTPException(404, "Esa persona no existe.")
@@ -1207,9 +1240,10 @@ def pdf_actividad(act_id: int, u: sqlite3.Row = Depends(exigir_sesion),
         "SELECT 1 FROM participaciones WHERE actividad_id = ? AND usuario_id = ?",
         (act_id, u["id"]),
     ).fetchone()
-    # Un empleado sólo genera el PDF de actividades en las que participa; la
-    # coordinación y los responsables pueden generar el de cualquiera.
-    if not (u["es_admin"] or u["es_responsable"]) and not participa:
+    # El compilado (con los resúmenes) lo generan quien participa, la coordinación y el
+    # responsable de proyecto de ESA actividad. Un responsable de otra actividad no ve los
+    # resúmenes ajenos.
+    if not participa and not _es_revisor(u, act):
         raise HTTPException(403, "Sólo puedes ver el PDF de tus propias actividades.")
     # El PDF se habilita cuando el responsable firma y autoriza. La coordinación puede
     # verlo antes (supervisión); el resto, sólo una vez autorizada.

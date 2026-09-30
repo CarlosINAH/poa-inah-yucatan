@@ -46,6 +46,8 @@
     {% if puede_todas %}
     <a href="/tablero?ver=todas{{ filtros }}" class="{{ 'on' if ver == 'todas' }}"
        {% if ver == 'todas' %}aria-current="true"{% endif %}>Todas</a>
+    {% endif %}
+    {% if u.es_admin %}
     <a href="/tablero?ver=empleado{{ filtros }}&empleado={{ empleado }}" class="{{ 'on' if ver == 'empleado' }}"
        {% if ver == 'empleado' %}aria-current="true"{% endif %}>Por empleado</a>
     {% endif %}

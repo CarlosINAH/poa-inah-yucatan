@@ -127,6 +127,11 @@ CREATE TABLE IF NOT EXISTS participaciones (
   -- 'rechazada' (dijo que no participó). Sólo las confirmadas cuentan en el informe.
   estado        TEXT NOT NULL DEFAULT 'confirmada',
   agregada_por  INTEGER REFERENCES usuarios(id),   -- quién etiquetó (NULL en datos previos)
+  -- Nota/observación del responsable de proyecto o la coordinación al empleado sobre su
+  -- resumen (p. ej. corregir redacción). La ve el dueño de la participación.
+  nota          TEXT NOT NULL DEFAULT '',
+  nota_por      INTEGER REFERENCES usuarios(id),
+  nota_en       TEXT NOT NULL DEFAULT '',
   creada_en     TEXT NOT NULL,
   actualizada_en TEXT NOT NULL,
   UNIQUE (actividad_id, usuario_id)
@@ -275,6 +280,11 @@ def _migrar(con: sqlite3.Connection) -> None:
         con.execute("ALTER TABLE participaciones ADD COLUMN estado TEXT NOT NULL DEFAULT 'confirmada'")
     if "agregada_por" not in parte_cols:
         con.execute("ALTER TABLE participaciones ADD COLUMN agregada_por INTEGER REFERENCES usuarios(id)")
+    # v3.14: nota/observación de revisión al empleado sobre su resumen.
+    if "nota" not in parte_cols:
+        con.execute("ALTER TABLE participaciones ADD COLUMN nota TEXT NOT NULL DEFAULT ''")
+        con.execute("ALTER TABLE participaciones ADD COLUMN nota_por INTEGER REFERENCES usuarios(id)")
+        con.execute("ALTER TABLE participaciones ADD COLUMN nota_en TEXT NOT NULL DEFAULT ''")
 
     # v3.5: coordenadas de cada zona para el mapa del informe.
     zona_cols = {f["name"] for f in con.execute("PRAGMA table_info(zonas)")}

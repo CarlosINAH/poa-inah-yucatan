@@ -512,6 +512,15 @@ def rechazar_participacion(con: sqlite3.Connection, parte_id: int) -> None:
                 "WHERE id = ?", (ahora(), parte_id))
 
 
+def guardar_nota(con: sqlite3.Connection, parte_id: int, nota: str, por: int) -> None:
+    """El responsable de proyecto o la coordinación deja una nota/observación al empleado
+    sobre su resumen (corregir redacción, etc.). Vaciarla la quita."""
+    con.execute(
+        "UPDATE participaciones SET nota = ?, nota_por = ?, nota_en = ? WHERE id = ?",
+        (nota.strip(), por if nota.strip() else None,
+         ahora() if nota.strip() else "", parte_id))
+
+
 def reetiquetar_participacion(con: sqlite3.Connection, act_id: int, uid: int,
                               por: int) -> None:
     """La coordinación vuelve a etiquetar a alguien que había rechazado: regresa a
@@ -534,8 +543,10 @@ def participaciones(con: sqlite3.Connection, act_id: int,
     if solo_confirmadas:
         cond += " AND p.estado = 'confirmada'"
     filas = con.execute(
-        f"""SELECT p.*, u.nombre, u.cargo, u.grupo, u.firma, u.es_responsable
+        f"""SELECT p.*, u.nombre, u.cargo, u.grupo, u.firma, u.es_responsable,
+                   nb.nombre AS nota_por_nombre
              FROM participaciones p JOIN usuarios u ON u.id = p.usuario_id
+        LEFT JOIN usuarios nb ON nb.id = p.nota_por
             WHERE {cond}
             ORDER BY p.creada_en""", (act_id,)).fetchall()
     salida = []
