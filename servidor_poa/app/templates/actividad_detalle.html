@@ -32,18 +32,49 @@
         </form>
       </div>
     </section>
+    {% elif mi_parte.estado == 'pendiente' %}
+    <section class="card">
+      <div class="edit-banner">
+        <div>
+          <b>Te etiquetaron en esta actividad. ¿Participaste?</b>
+          <div class="section-desc">
+            {% if mi_parte.agregada_por %}Alguien te agregó como participante.{% endif %}
+            Confirma para que cuente y puedas subir tu resumen y tus fotos. Si no participaste,
+            dilo: dejará de aparecer entre tus actividades.</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <form method="post" action="/participaciones/{{ mi_parte.id }}/confirmar">
+            <button class="btn primary" type="submit">Sí participé</button>
+          </form>
+          <form method="post" action="/participaciones/{{ mi_parte.id }}/rechazar"
+                onsubmit="return confirm('¿Confirmas que NO participaste? Sólo la coordinación podría volver a etiquetarte.')">
+            <button class="btn" type="submit">No participé</button>
+          </form>
+        </div>
+      </div>
+    </section>
+    {% elif mi_parte.estado == 'rechazada' %}
+    <section class="card">
+      <div class="edit-banner">
+        <div>
+          <b>Indicaste que no participaste en esta actividad.</b>
+          <div class="section-desc">No cuenta entre tus actividades. Si fue un error, la
+            coordinación puede volver a etiquetarte.</div>
+        </div>
+      </div>
+    </section>
     {% endif %}
 
     <section class="card">
       <div class="section-head">
         <span class="section-num">1</span>
         <div>
-          <h2>Participantes ({{ partes | length }})</h2>
+          <h2>Participantes ({{ confirmados | length }})</h2>
           <p class="section-desc">Cada quien aporta su resumen y su evidencia.</p>
         </div>
       </div>
 
-      {% for p in partes %}
+      {% for p in confirmados %}
       <div class="rep-card" style="margin-bottom:14px">
         <div class="rc-top">
           <strong>{{ p.nombre }}</strong>
@@ -126,13 +157,40 @@
       </div>
       {% endfor %}
 
+      {% set otras = partes | rejectattr('estado', 'equalto', 'confirmada') | list %}
+      {% if otras %}
+      <div style="margin-top:8px">
+        <p class="section-desc"><b>Etiquetados por confirmar</b> — no cuentan hasta que la
+          persona confirme que participó.</p>
+        {% for p in otras %}
+        <div class="rc-top" style="justify-content:space-between;margin-bottom:6px">
+          <span>{{ p.nombre }} <span class="tag">{{ p.cargo }}</span></span>
+          <span>
+            {% if p.estado == 'pendiente' %}
+            <span class="tag" style="background:#fff3d6;color:#8a6100">⏳ Por confirmar</span>
+            {% else %}
+            <span class="tag" style="background:#fde8e8;color:#9b1c1c">✕ No participó</span>
+            {% if u.es_admin %}
+            <form method="post" action="/actividades/{{ act.id }}/participantes" style="display:inline"
+                  onsubmit="return confirm('¿Volver a etiquetar a {{ p.nombre }}? Le pedirá confirmar de nuevo.')">
+              <input type="hidden" name="usuario_id" value="{{ p.usuario_id }}">
+              <button class="btn sm" type="submit">Volver a etiquetar</button>
+            </form>
+            {% endif %}
+            {% endif %}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
       {% if puede_agregar and agregables %}
       <div class="edit-banner" style="margin-top:8px">
         <div>
           <b>¿Trabajaron otras personas en esta actividad?</b>
-          <div class="section-desc">Agrégalas aquí. Cada una podrá entrar a escribir su
-            propio resumen y subir sus fotos. La actividad seguirá contando <b>1</b>
-            para el POA.</div>
+          <div class="section-desc">Etiquétalas aquí. A cada una le aparecerá en
+            «Actividades compartidas» para <b>confirmar</b> que participó; hasta entonces
+            no cuenta. La actividad seguirá contando <b>1</b> para el POA.</div>
         </div>
         <form method="post" action="/actividades/{{ act.id }}/participantes"
               style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">

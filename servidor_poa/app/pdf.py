@@ -694,7 +694,7 @@ def individual(con: sqlite3.Connection, act_id: int, solo_usuario: int | None = 
     from .consolidado import actividad as leer
     fila = leer(con, act_id)
     act = dict(fila)
-    act["participaciones"] = participaciones(con, act_id)
+    act["participaciones"] = participaciones(con, act_id, solo_confirmadas=True)
 
     piezas, alto = _hoja_actividad(con, act, con_fotos=True,
                                    solo_usuario=solo_usuario, resumen_extenso=compilado)

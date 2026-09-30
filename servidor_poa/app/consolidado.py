@@ -284,8 +284,11 @@ def cuenta_pendientes(con: sqlite3.Connection, uid: int) -> int:
 
 
 def buscar(con: sqlite3.Connection, anio: int, texto: str = "", zona: str = "",
-           trimestre: int = 0, solo_de: int | None = None) -> list[dict]:
-    """La lista del tablero. `solo_de` limita a las actividades de una persona."""
+           trimestre: int = 0, solo_de: int | None = None,
+           estado_de: str | None = None) -> list[dict]:
+    """La lista del tablero. `solo_de` limita a las actividades de una persona;
+    `estado_de` exige que su participación tenga ese estado (p. ej. 'confirmada' para
+    «mis actividades», 'pendiente' para «actividades compartidas»)."""
     condiciones, params = ["a.anio = ?", "a.eliminada_en = ''"], [anio]
     if texto.strip():
         condiciones.append("(a.titulo_norm LIKE ? OR c.actividad_poa LIKE ?)")
@@ -297,9 +300,13 @@ def buscar(con: sqlite3.Connection, anio: int, texto: str = "", zona: str = "",
         condiciones.append("a.trimestre = ?")
         params.append(trimestre)
     if solo_de:
-        condiciones.append("EXISTS (SELECT 1 FROM participaciones p "
-                           "WHERE p.actividad_id = a.id AND p.usuario_id = ?)")
+        sub = ("EXISTS (SELECT 1 FROM participaciones p "
+               "WHERE p.actividad_id = a.id AND p.usuario_id = ?")
         params.append(solo_de)
+        if estado_de:
+            sub += " AND p.estado = ?"
+            params.append(estado_de)
+        condiciones.append(sub + ")")
 
     filas = con.execute(
         _SELECT_ACTIVIDAD + " WHERE " + " AND ".join(condiciones)
@@ -308,15 +315,40 @@ def buscar(con: sqlite3.Connection, anio: int, texto: str = "", zona: str = "",
     salida = []
     for f in filas:
         act = dict(f)
+        # En el tablero, «quién participa» y el conteo de fotos son los confirmados.
         resumen = con.execute(
             """SELECT u.nombre,
                       (SELECT COUNT(*) FROM fotos x WHERE x.participacion_id = p.id) nf
                  FROM participaciones p JOIN usuarios u ON u.id = p.usuario_id
-                WHERE p.actividad_id = ? ORDER BY p.creada_en""", (f["id"],)).fetchall()
+                WHERE p.actividad_id = ? AND p.estado = 'confirmada'
+                ORDER BY p.creada_en""", (f["id"],)).fetchall()
         act["participantes"] = [r["nombre"] for r in resumen]
         act["n_fotos"] = sum(r["nf"] for r in resumen)
         salida.append(act)
     return salida
+
+
+def cuenta_compartidas(con: sqlite3.Connection, uid: int, anio: int) -> int:
+    """Cuántas actividades tienen a esta persona etiquetada y pendiente de confirmar."""
+    return con.execute(
+        """SELECT COUNT(*) c FROM participaciones p
+             JOIN actividades a ON a.id = p.actividad_id
+            WHERE p.usuario_id = ? AND p.estado = 'pendiente'
+              AND a.anio = ? AND a.eliminada_en = ''""", (uid, anio)).fetchone()["c"]
+
+
+def mis_pendientes_confirmar(con: sqlite3.Connection, uid: int,
+                             anio: int) -> dict[int, dict]:
+    """Por actividad, la participación pendiente de esta persona y quién la etiquetó.
+    Sirve para poner los botones «Sí participé / No participé» en cada renglón."""
+    filas = con.execute(
+        """SELECT p.id AS parte_id, p.actividad_id, ag.nombre AS por
+             FROM participaciones p
+             JOIN actividades a ON a.id = p.actividad_id
+        LEFT JOIN usuarios ag ON ag.id = p.agregada_por
+            WHERE p.usuario_id = ? AND p.estado = 'pendiente'
+              AND a.anio = ? AND a.eliminada_en = ''""", (uid, anio)).fetchall()
+    return {f["actividad_id"]: {"parte_id": f["parte_id"], "por": f["por"]} for f in filas}
 
 
 def actividades_de(con: sqlite3.Connection, uid: int, anio: int,
@@ -328,7 +360,8 @@ def actividades_de(con: sqlite3.Connection, uid: int, anio: int,
     """
     condiciones = ["a.anio = ?", "a.eliminada_en = ''",
                    "EXISTS (SELECT 1 FROM participaciones p "
-                   "WHERE p.actividad_id = a.id AND p.usuario_id = ?)"]
+                   "WHERE p.actividad_id = a.id AND p.usuario_id = ? "
+                   "AND p.estado = 'confirmada')"]
     params: list = [anio, uid]
     if trimestre in (1, 2, 3, 4):
         condiciones.append("a.trimestre = ?")
@@ -339,7 +372,7 @@ def actividades_de(con: sqlite3.Connection, uid: int, anio: int,
     salida = []
     for f in filas:
         act = dict(f)
-        act["participaciones"] = participaciones(con, f["id"])
+        act["participaciones"] = participaciones(con, f["id"], solo_confirmadas=True)
         salida.append(act)
     return salida
 
@@ -354,14 +387,17 @@ def archivos_de_actividad(con: sqlite3.Connection, act_id: int) -> list[str]:
 # --------------------------------------------------------------- participación
 
 def sumar_participante(con: sqlite3.Connection, act_id: int, uid: int,
-                       resumen: str = "") -> int:
-    """Alta idempotente: volver a sumarse no duplica ni pisa el resumen ya escrito."""
+                       resumen: str = "", estado: str = "confirmada",
+                       agregada_por: int | None = None) -> int:
+    """Alta idempotente: volver a sumar no duplica ni pisa el resumen ni el estado ya
+    guardados. `estado`: 'confirmada' cuando la persona se registra a sí misma; 'pendiente'
+    cuando otra la etiqueta y falta que confirme. `agregada_por` guarda quién etiquetó."""
     con.execute(
-        """INSERT INTO participaciones (actividad_id, usuario_id, resumen,
-                                        creada_en, actualizada_en)
-           VALUES (?, ?, ?, ?, ?)
+        """INSERT INTO participaciones (actividad_id, usuario_id, resumen, estado,
+                                        agregada_por, creada_en, actualizada_en)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (actividad_id, usuario_id) DO NOTHING""",
-        (act_id, uid, resumen, ahora(), ahora()),
+        (act_id, uid, resumen, estado, agregada_por, ahora(), ahora()),
     )
     fila = con.execute(
         "SELECT id FROM participaciones WHERE actividad_id = ? AND usuario_id = ?",
@@ -370,15 +406,52 @@ def sumar_participante(con: sqlite3.Connection, act_id: int, uid: int,
     return int(fila["id"])
 
 
+def estado_participacion(con: sqlite3.Connection, act_id: int, uid: int) -> str | None:
+    """El estado de la participación de una persona en una actividad, o None si no está."""
+    fila = con.execute(
+        "SELECT estado FROM participaciones WHERE actividad_id = ? AND usuario_id = ?",
+        (act_id, uid)).fetchone()
+    return fila["estado"] if fila else None
+
+
+def confirmar_participacion(con: sqlite3.Connection, parte_id: int) -> None:
+    """El empleado confirma que sí participó: la participación pasa a contar en el informe."""
+    con.execute("UPDATE participaciones SET estado = 'confirmada', actualizada_en = ? "
+                "WHERE id = ?", (ahora(), parte_id))
+
+
+def rechazar_participacion(con: sqlite3.Connection, parte_id: int) -> None:
+    """El empleado dice que NO participó: deja de contar y sólo la coordinación puede
+    volver a etiquetarlo."""
+    con.execute("UPDATE participaciones SET estado = 'rechazada', actualizada_en = ? "
+                "WHERE id = ?", (ahora(), parte_id))
+
+
+def reetiquetar_participacion(con: sqlite3.Connection, act_id: int, uid: int,
+                              por: int) -> None:
+    """La coordinación vuelve a etiquetar a alguien que había rechazado: regresa a
+    'pendiente' para que confirme de nuevo."""
+    con.execute(
+        "UPDATE participaciones SET estado = 'pendiente', agregada_por = ?, "
+        "actualizada_en = ? WHERE actividad_id = ? AND usuario_id = ?",
+        (por, ahora(), act_id, uid))
+
+
 def participacion(con: sqlite3.Connection, parte_id: int) -> sqlite3.Row | None:
     return con.execute("SELECT * FROM participaciones WHERE id = ?", (parte_id,)).fetchone()
 
 
-def participaciones(con: sqlite3.Connection, act_id: int) -> list[dict]:
+def participaciones(con: sqlite3.Connection, act_id: int,
+                    solo_confirmadas: bool = False) -> list[dict]:
+    """Participaciones de una actividad. Con `solo_confirmadas` deja fuera las pendientes
+    de confirmar y las rechazadas: es lo que va al informe y a los conteos."""
+    cond = "p.actividad_id = ?"
+    if solo_confirmadas:
+        cond += " AND p.estado = 'confirmada'"
     filas = con.execute(
-        """SELECT p.*, u.nombre, u.cargo, u.grupo, u.firma, u.es_responsable
+        f"""SELECT p.*, u.nombre, u.cargo, u.grupo, u.firma, u.es_responsable
              FROM participaciones p JOIN usuarios u ON u.id = p.usuario_id
-            WHERE p.actividad_id = ?
+            WHERE {cond}
             ORDER BY p.creada_en""", (act_id,)).fetchall()
     salida = []
     for f in filas:
@@ -412,12 +485,13 @@ def kpis(con: sqlite3.Connection, anio: int) -> dict:
     personas = con.execute(
         """SELECT COUNT(DISTINCT p.usuario_id) c
              FROM participaciones p JOIN actividades a ON a.id = p.actividad_id
-            WHERE a.anio = ? AND a.eliminada_en = ''""", (anio,)).fetchone()["c"]
+            WHERE a.anio = ? AND a.eliminada_en = '' AND p.estado = 'confirmada'""",
+        (anio,)).fetchone()["c"]
     colaborativas = con.execute(
         """SELECT COUNT(*) c FROM (
               SELECT p.actividad_id FROM participaciones p
                 JOIN actividades a ON a.id = p.actividad_id
-               WHERE a.anio = ? AND a.eliminada_en = ''
+               WHERE a.anio = ? AND a.eliminada_en = '' AND p.estado = 'confirmada'
                GROUP BY p.actividad_id HAVING COUNT(*) > 1)""", (anio,)).fetchone()["c"]
     planeado, informado = fila["planeado"], fila["informado"]
     return {
@@ -443,7 +517,7 @@ def armar(con: sqlite3.Connection, anio: int, trimestre: int, agrupar: str) -> l
     grupos: dict[str, list[dict]] = {}
     for f in filas:
         act = dict(f)
-        act["participaciones"] = participaciones(con, f["id"])
+        act["participaciones"] = participaciones(con, f["id"], solo_confirmadas=True)
         act["participantes"] = ", ".join(p["nombre"] for p in act["participaciones"])
         act["informado_periodo"] = (
             act[f"inf_t{trimestre}"] if trimestre in (1, 2, 3, 4) else act["total_informado"]
