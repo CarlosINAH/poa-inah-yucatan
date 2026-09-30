@@ -20,7 +20,7 @@
       <thead>
         <tr>
           <th>Nombre</th><th>Cargo</th><th>Participaciones</th>
-          <th>Estado</th><th></th>
+          <th>Último ingreso</th><th>Estado</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -34,20 +34,29 @@
           <td>{{ p.cargo }}</td>
           <td>{{ p.participaciones }}</td>
           <td>
-            {% if p.activo %}Aparece en la lista{% else %}<span class="muted">Desactivada</span>{% endif %}
-            {% if p.es_admin and not p.pin_hash %}
+            {{ p.ultimo_ingreso | fecha_hora }}
+            {% if not p.pin_hash %}
             <br><span class="muted" style="font-size:11px">Sin PIN definido</span>
             {% endif %}
           </td>
           <td>
-            {% if p.es_admin and p.id != u.id %}
+            {% if p.activo %}Aparece en la lista{% else %}<span class="muted">Desactivada</span>{% endif %}
+          </td>
+          <td>
+            <form method="post" action="/admin/usuarios/{{ p.id }}/pin"
+                  style="display:flex;gap:4px;align-items:center;margin-bottom:6px"
+                  onsubmit="return confirm('¿Definir un PIN nuevo para {{ p.nombre }}?')">
+              <input type="password" name="nuevo" required minlength="4" maxlength="20"
+                     inputmode="numeric" autocomplete="off" placeholder="PIN nuevo"
+                     style="width:110px" aria-label="PIN nuevo para {{ p.nombre }}">
+              <button class="btn sm" type="submit">Cambiar PIN</button>
+            </form>
+            {% if p.id != u.id %}
             <form method="post" action="/admin/usuarios/{{ p.id }}/olvide-pin"
                   style="display:inline"
                   onsubmit="return confirm('Se borra el PIN de {{ p.nombre }} y definirá uno nuevo la próxima vez que entre. ¿Continuar?')">
               <button class="btn sm" type="submit">Olvidó su PIN</button>
             </form>
-            {% endif %}
-            {% if p.id != u.id %}
             <form method="post" action="/admin/usuarios/{{ p.id }}/activo" style="display:inline">
               <button class="btn sm" type="submit">{{ 'Desactivar' if p.activo else 'Activar' }}</button>
             </form>

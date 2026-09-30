@@ -410,11 +410,15 @@ def _firmas_contenido(act: dict, partes: list | None = None,
     ficha individual, sólo el empleado que la pidió). Devuelve [] si no hay quién firme."""
     if partes is None:
         partes = act.get("participaciones") or []
+    # Sólo los empleados firman como ejecutantes. Un responsable de proyecto que participa
+    # en la actividad (sin ser su responsable) queda etiquetado como participante, pero NO
+    # se le pide firma: sólo firma cuando es el responsable de la actividad (abajo).
     celdas = [_celda_firma(p["nombre"], p.get("cargo", ""), "Ejecutante", p.get("firma", ""))
-              for p in partes]
-    ids_ejecutantes = {p.get("usuario_id") for p in partes}
-    # El responsable de proyecto firma como tal, salvo que ya figure como ejecutante.
-    if act.get("responsable_nombre") and act.get("responsable_id") not in ids_ejecutantes:
+              for p in partes if not p.get("es_responsable")]
+    ids_firmantes = {p.get("usuario_id") for p in partes if not p.get("es_responsable")}
+    # El responsable de proyecto de la actividad firma como tal (salvo que ya haya firmado
+    # como ejecutante, caso raro en que no estuviera marcado como responsable).
+    if act.get("responsable_nombre") and act.get("responsable_id") not in ids_firmantes:
         celdas.append(_celda_firma(act["responsable_nombre"], act.get("responsable_cargo", ""),
                                    "Responsable", act.get("responsable_firma", "")))
     if not celdas:
@@ -784,17 +788,30 @@ def _portada(anio: int, trimestre: int, agrupar: str, tot: dict, grupos: list[di
 
 def consolidado(con: sqlite3.Connection, grupos: list[dict], anio: int, trimestre: int,
                 agrupar: str, con_fotos: bool = True) -> bytes:
-    """El consolidado es sólo el resumen ejecutivo de la Sección: totales por zona/eje y
-    firmas de la coordinación. El detalle de cada actividad vive en su hoja individual y
-    en la descarga «mis actividades» de cada persona, no aquí.
+    """El informe consolidado de la Sección: primero el resumen ejecutivo (totales por
+    zona/eje y firmas de la coordinación) y en seguida la hoja de CADA actividad del
+    periodo —con sus datos, su resumen y su evidencia fotográfica— para que quede el
+    reporte completo con todas las actividades de los empleados, no sólo el conteo.
     """
     from .consolidado import totales
     tot = totales(grupos)
 
-    # Las firmas de la coordinación van ancladas al pie de la hoja, como en las fichas.
-    # El ancla va al final para que, si el resumen ocupara más de una hoja, las firmas
-    # caigan en la última.
-    alto = _bloque_firmas_generico().wrap(_PIE_ANCHO, 200 * mm)[1]
+    # Página 1: resumen ejecutivo, con las firmas de la coordinación ancladas al pie.
+    # El ancla va al final del bloque para que, si el resumen ocupara más de una hoja,
+    # las firmas caigan en la última.
+    alto_gen = _bloque_firmas_generico().wrap(_PIE_ANCHO, 200 * mm)[1]
     piezas = _portada(anio, trimestre, agrupar, tot, grupos)
     piezas.append(_PieFirmas(_bloque_firmas_generico))
-    return _construir(piezas, [alto], _membrete)
+    altos = [alto_gen]
+
+    # En seguida, la hoja de cada actividad (todas las de todos los grupos), en versión
+    # colectiva: un resumen —el más extenso— y la evidencia con fotos al azar del total
+    # que compartieron los participantes. Cada hoja va firmada al pie.
+    for grupo in grupos:
+        for act in grupo["actividades"]:
+            piezas.append(PageBreak())
+            hoja, alto = _hoja_actividad(con, act, con_fotos=con_fotos, resumen_extenso=True)
+            piezas += hoja
+            altos.append(alto)
+
+    return _construir(piezas, altos, _membrete)

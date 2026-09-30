@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   es_admin               INTEGER NOT NULL DEFAULT 0,
   pin_hash               TEXT NOT NULL DEFAULT '',
   firma                  TEXT NOT NULL DEFAULT '',   -- PNG de la firma dibujada (nombre de archivo en firmas/)
+  ultimo_ingreso         TEXT NOT NULL DEFAULT '',    -- sello ISO del último inicio de sesión
   activo                 INTEGER NOT NULL DEFAULT 1,
   creado_en              TEXT NOT NULL
 );
@@ -210,6 +211,10 @@ def _migrar(con: sqlite3.Connection) -> None:
     # v3.9: firma dibujada por cada persona, para estamparla en cada hoja del informe.
     if "firma" not in columnas:
         con.execute("ALTER TABLE usuarios ADD COLUMN firma TEXT NOT NULL DEFAULT ''")
+
+    # v3.12: último inicio de sesión, para verlo en el panel de Personal.
+    if "ultimo_ingreso" not in columnas:
+        con.execute("ALTER TABLE usuarios ADD COLUMN ultimo_ingreso TEXT NOT NULL DEFAULT ''")
 
     for obsoleta in ("password_hash", "debe_cambiar_password"):
         if obsoleta in columnas:

@@ -46,6 +46,20 @@ app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 plantillas = Jinja2Templates(directory=str(BASE / "templates"))
 
 
+def _fecha_hora(iso: str | None) -> str:
+    """Sello ISO (2026-09-30T14:05:…) → «30/09/2026 14:05». Vacío → «Nunca»."""
+    from datetime import datetime
+    if not iso:
+        return "Nunca"
+    try:
+        return f"{datetime.fromisoformat(iso):%d/%m/%Y %H:%M}"
+    except (ValueError, TypeError):
+        return str(iso)
+
+
+plantillas.env.filters["fecha_hora"] = _fecha_hora
+
+
 @app.on_event("startup")
 def _preparar() -> None:
     con = conectar()
@@ -194,6 +208,8 @@ def pin_verificar(request: Request, pin: str = Form(...),
     if not auth.verificar_pin(p["pin_hash"], pin):
         return vista(request, "pin.html",
                      {"u": None, "persona": p, "error": "Ese PIN no es correcto."})
+    con.execute("UPDATE usuarios SET ultimo_ingreso = ? WHERE id = ?", (ahora(), p["id"]))
+    con.commit()
     request.session.clear()
     request.session["uid"] = p["id"]
     return RedirectResponse("/tablero", status_code=303)
@@ -223,8 +239,8 @@ def definir_pin(request: Request, nuevo: str = Form(...), repetir: str = Form(..
     if motivo := auth.validar_pin(nuevo):
         return fallo(motivo)
 
-    con.execute("UPDATE usuarios SET pin_hash = ? WHERE id = ?",
-                (auth.hash_pin(nuevo.strip()), p["id"]))
+    con.execute("UPDATE usuarios SET pin_hash = ?, ultimo_ingreso = ? WHERE id = ?",
+                (auth.hash_pin(nuevo.strip()), ahora(), p["id"]))
     con.commit()
     request.session.clear()
     request.session["uid"] = p["id"]
@@ -1101,6 +1117,26 @@ def olvide_pin(request: Request, uid: int, u: sqlite3.Row = Depends(exigir_admin
     con.commit()
     avisar(request, f"Se borró el PIN de {objetivo['nombre']}. La próxima vez que entre, "
                     "la plataforma le pedirá definir uno nuevo.")
+    return RedirectResponse("/admin/usuarios", status_code=303)
+
+
+@app.post("/admin/usuarios/{uid}/pin")
+def admin_cambiar_pin(request: Request, uid: int, nuevo: str = Form(...),
+                      u: sqlite3.Row = Depends(exigir_admin),
+                      con: sqlite3.Connection = Depends(bd)):
+    """La coordinación fija un PIN nuevo a una persona desde el panel de Personal.
+    A diferencia de «Olvidó su PIN» (que lo borra para que lo defina al entrar), aquí se
+    establece uno de inmediato, útil para dejarle un PIN provisional."""
+    objetivo = con.execute("SELECT nombre FROM usuarios WHERE id = ?", (uid,)).fetchone()
+    if objetivo is None:
+        raise HTTPException(404, "Esa persona no existe.")
+    if motivo := auth.validar_pin(nuevo):
+        avisar(request, motivo)
+        return RedirectResponse("/admin/usuarios", status_code=303)
+    con.execute("UPDATE usuarios SET pin_hash = ? WHERE id = ?",
+                (auth.hash_pin(nuevo.strip()), uid))
+    con.commit()
+    avisar(request, f"Se definió un PIN nuevo para {objetivo['nombre']}.")
     return RedirectResponse("/admin/usuarios", status_code=303)
 
 
