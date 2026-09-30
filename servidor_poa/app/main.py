@@ -155,7 +155,7 @@ def inicio(request: Request, u: sqlite3.Row = Depends(exigir_sesion),
     hacer nada.
     """
     anio = consolidado.anio_por_defecto(con)
-    mias = len(consolidado.buscar(con, anio=anio, solo_de=u["id"], estado_de="confirmada"))
+    mias = len(consolidado.buscar(con, anio=anio, solo_de=u["id"], relacion="mias"))
     return vista(request, "inicio.html", {
         "u": u, "anio": anio, "mias": mias,
         "total": consolidado.kpis(con, anio)["actividades"],
@@ -342,15 +342,16 @@ def tablero(request: Request, anio: int | None = None, trimestre: int = 0, q: st
 
     if ver == "compartidas":
         filas = consolidado.buscar(con, anio=anio, texto=q, zona=zona, trimestre=trimestre,
-                                   solo_de=u["id"], estado_de="pendiente")
-        pendientes = consolidado.mis_pendientes_confirmar(con, u["id"], anio)
+                                   solo_de=u["id"], relacion="compartidas")
+        info = consolidado.mis_compartidas_info(con, u["id"], anio)
         for f in filas:
-            info = pendientes.get(f["id"], {})
-            f["mi_parte_id"] = info.get("parte_id")
-            f["etiquetada_por"] = info.get("por")
+            datos = info.get(f["id"], {})
+            f["mi_parte_id"] = datos.get("parte_id")
+            f["etiquetada_por"] = datos.get("por")
+            f["mi_estado"] = datos.get("estado")
     elif ver == "mias":
         filas = consolidado.buscar(con, anio=anio, texto=q, zona=zona, trimestre=trimestre,
-                                   solo_de=u["id"], estado_de="confirmada")
+                                   solo_de=u["id"], relacion="mias")
     else:  # todas
         filas = consolidado.buscar(con, anio=anio, texto=q, zona=zona, trimestre=trimestre)
 
