@@ -155,10 +155,11 @@ def inicio(request: Request, u: sqlite3.Row = Depends(exigir_sesion),
     hacer nada.
     """
     anio = consolidado.anio_por_defecto(con)
-    mias = len(consolidado.buscar(con, anio=anio, solo_de=u["id"]))
+    mias = len(consolidado.buscar(con, anio=anio, solo_de=u["id"], estado_de="confirmada"))
     return vista(request, "inicio.html", {
         "u": u, "anio": anio, "mias": mias,
         "total": consolidado.kpis(con, anio)["actividades"],
+        "compartidas": consolidado.cuenta_compartidas(con, u["id"], anio),
     })
 
 
@@ -327,19 +328,36 @@ def salir(request: Request):
 def tablero(request: Request, anio: int | None = None, trimestre: int = 0, q: str = "",
             zona: str = "", ver: str = "mias",
             u: sqlite3.Row = Depends(exigir_sesion), con: sqlite3.Connection = Depends(bd)):
-    """El tablero ES la lista de actividades: no hay una pantalla aparte que repita."""
+    """El tablero ES la lista de actividades: no hay una pantalla aparte que repita.
+
+    Pestañas: «mis actividades» (donde ya confirmé que participé), «actividades
+    compartidas» (donde alguien me etiquetó y falta que confirme) y, para la
+    coordinación y los responsables, «todas» las de la Sección.
+    """
     anio = anio or consolidado.anio_por_defecto(con)
-    # Sólo coordinación y responsables ven las actividades de toda la Sección.
-    # Un empleado siempre ve únicamente en las que participó, aunque escriba ?ver=todas.
     puede_todas = bool(u["es_admin"] or u["es_responsable"])
-    ver = ver if ver in ("mias", "todas") else "mias"
-    if not puede_todas:
+    ver = ver if ver in ("mias", "compartidas", "todas") else "mias"
+    if ver == "todas" and not puede_todas:
         ver = "mias"
-    filas = consolidado.buscar(con, anio=anio, texto=q, zona=zona, trimestre=trimestre,
-                               solo_de=u["id"] if ver == "mias" else None)
+
+    if ver == "compartidas":
+        filas = consolidado.buscar(con, anio=anio, texto=q, zona=zona, trimestre=trimestre,
+                                   solo_de=u["id"], estado_de="pendiente")
+        pendientes = consolidado.mis_pendientes_confirmar(con, u["id"], anio)
+        for f in filas:
+            info = pendientes.get(f["id"], {})
+            f["mi_parte_id"] = info.get("parte_id")
+            f["etiquetada_por"] = info.get("por")
+    elif ver == "mias":
+        filas = consolidado.buscar(con, anio=anio, texto=q, zona=zona, trimestre=trimestre,
+                                   solo_de=u["id"], estado_de="confirmada")
+    else:  # todas
+        filas = consolidado.buscar(con, anio=anio, texto=q, zona=zona, trimestre=trimestre)
+
     return vista(request, "tablero.html", {
         "u": u, "anio": anio, "trimestre": trimestre, "q": q, "zona": zona, "ver": ver,
         "puede_todas": puede_todas,
+        "n_compartidas": consolidado.cuenta_compartidas(con, u["id"], anio),
         "anios": consolidado.anios_disponibles(con),
         "trimestres": TRIMESTRES,
         "zonas": consolidado.zonas_usadas(con),
@@ -462,7 +480,8 @@ async def crear(request: Request, u: sqlite3.Row = Depends(exigir_sesion),
 
     datos["zona"] = consolidado.canonizar_zona(con, datos["zona"])
     act_id = consolidado.insertar_actividad(con, datos, u["id"])
-    consolidado.sumar_participante(con, act_id, u["id"], resumen)
+    consolidado.sumar_participante(con, act_id, u["id"], resumen,
+                                   estado="confirmada", agregada_por=u["id"])
     con.commit()
     avisar(request, "Actividad registrada. Ahora puedes subir tus fotos.")
     return RedirectResponse(f"/actividades/{act_id}", status_code=303)
@@ -474,17 +493,22 @@ def detalle(request: Request, act_id: int, u: sqlite3.Row = Depends(exigir_sesio
     act = consolidado.actividad(con, act_id)
     if act is None:
         raise HTTPException(404, "Esa actividad no existe.")
-    partes = consolidado.participaciones(con, act_id)
+    partes = consolidado.participaciones(con, act_id)   # todos los estados, para mostrarlos
     mi_parte = next((p for p in partes if p["usuario_id"] == u["id"]), None)
-    # Puede sumar a otras personas quien ya participa (fue una labor compartida) o quien
-    # puede editar la ficha (creador, responsable, coordinación). La lista para elegir
-    # deja fuera a quienes ya están.
-    puede_agregar = bool(mi_parte) or consolidado.puede_editar(u, act)
+    # En la ficha, el resumen y las firmas son de los confirmados; los pendientes y
+    # rechazados se muestran aparte con su estado.
+    confirmados = [p for p in partes if p["estado"] == "confirmada"]
+    # Puede sumar a otras personas quien ya participa (confirmado) o quien puede editar
+    # la ficha (creador, responsable, coordinación). La lista para elegir deja fuera a
+    # quienes ya están (en cualquier estado): a los rechazados se les re-etiqueta con su
+    # propio botón, sólo la coordinación.
+    puede_agregar = bool(mi_parte and mi_parte["estado"] == "confirmada") \
+        or consolidado.puede_editar(u, act)
     ids_parte = {p["usuario_id"] for p in partes}
     agregables = ([r for r in auth.seleccionables(con) if r["id"] not in ids_parte]
                   if puede_agregar else [])
     return vista(request, "actividad_detalle.html", {
-        "u": u, "act": act, "partes": partes,
+        "u": u, "act": act, "partes": partes, "confirmados": confirmados,
         "mi_parte": mi_parte,
         "puede_editar": consolidado.puede_editar(u, act),
         "puede_agregar": puede_agregar, "agregables": agregables,
@@ -492,7 +516,7 @@ def detalle(request: Request, act_id: int, u: sqlite3.Row = Depends(exigir_sesio
         # Autorización por firma: quién puede pedirla, quién puede firmarla y su estado.
         "puede_autorizar": consolidado.puede_autorizar(u, act),
         "esta_autorizada": consolidado.esta_autorizada(act),
-        "soy_participante": mi_parte is not None,
+        "soy_participante": mi_parte is not None and mi_parte["estado"] == "confirmada",
         "tengo_firma": bool(u["firma"]),
         "puede_borrar": consolidado.puede_borrar(u, act),
     })
@@ -548,7 +572,9 @@ def sumarme(request: Request, act_id: int, u: sqlite3.Row = Depends(exigir_sesio
             con: sqlite3.Connection = Depends(bd)):
     if consolidado.actividad(con, act_id) is None:
         raise HTTPException(404, "Esa actividad no existe.")
-    consolidado.sumar_participante(con, act_id, u["id"], "")
+    # Quien se suma solo confirma su propia participación de una vez.
+    consolidado.sumar_participante(con, act_id, u["id"], "",
+                                   estado="confirmada", agregada_por=u["id"])
     con.commit()
     avisar(request, "Te sumaste a la actividad. Escribe tu resumen y sube tus fotos.")
     return RedirectResponse(f"/actividades/{act_id}", status_code=303)
@@ -578,11 +604,66 @@ def agregar_participante(request: Request, act_id: int, usuario_id: int = Form(.
                            (usuario_id,)).fetchone()
     if objetivo is None:
         raise HTTPException(404, "Esa persona no está en la lista.")
-    consolidado.sumar_participante(con, act_id, objetivo["id"], "")
+    estado = consolidado.estado_participacion(con, act_id, objetivo["id"])
+    if estado == "rechazada":
+        # Ya dijo que no participó: sólo la coordinación puede volver a etiquetarlo.
+        if not u["es_admin"]:
+            raise HTTPException(403, f"{objetivo['nombre']} indicó que no participó en esta "
+                                     "actividad. Sólo la coordinación puede volver a etiquetarlo.")
+        consolidado.reetiquetar_participacion(con, act_id, objetivo["id"], u["id"])
+        con.commit()
+        avisar(request, f"Volviste a etiquetar a {objetivo['nombre']}. Le aparecerá en "
+                        "«Actividades compartidas» para que confirme.")
+        return RedirectResponse(f"/actividades/{act_id}", status_code=303)
+    # Etiquetar a alguien más deja su participación pendiente: contará en el informe
+    # cuando esa persona confirme que sí participó.
+    consolidado.sumar_participante(con, act_id, objetivo["id"], "",
+                                   estado="pendiente", agregada_por=u["id"])
     con.commit()
-    avisar(request, f"Agregaste a {objetivo['nombre']}. Cuando entre, podrá escribir su "
-                    "resumen y subir sus fotos.")
+    avisar(request, f"Etiquetaste a {objetivo['nombre']}. Le aparecerá en «Actividades "
+                    "compartidas» para confirmar su participación.")
     return RedirectResponse(f"/actividades/{act_id}", status_code=303)
+
+
+def _destino_seguro(volver: str, alterno: str) -> str:
+    """Sólo se acepta un redirect interno (evita mandar a un sitio externo)."""
+    return volver if volver.startswith("/") and not volver.startswith("//") else alterno
+
+
+@app.post("/participaciones/{parte_id}/confirmar")
+def confirmar_participacion(request: Request, parte_id: int, volver: str = Form(""),
+                            u: sqlite3.Row = Depends(exigir_sesion),
+                            con: sqlite3.Connection = Depends(bd)):
+    """El empleado confirma que sí participó en una actividad donde lo etiquetaron."""
+    parte = consolidado.participacion(con, parte_id)
+    if parte is None:
+        raise HTTPException(404, "Esa participación no existe.")
+    if parte["usuario_id"] != u["id"]:
+        raise HTTPException(403, "Sólo tú puedes confirmar tu propia participación.")
+    consolidado.confirmar_participacion(con, parte_id)
+    con.commit()
+    avisar(request, "Confirmaste tu participación. Ya cuenta y puedes subir tu evidencia.")
+    return RedirectResponse(_destino_seguro(volver, f"/actividades/{parte['actividad_id']}"),
+                            status_code=303)
+
+
+@app.post("/participaciones/{parte_id}/rechazar")
+def rechazar_participacion(request: Request, parte_id: int, volver: str = Form(""),
+                           u: sqlite3.Row = Depends(exigir_sesion),
+                           con: sqlite3.Connection = Depends(bd)):
+    """El empleado indica que NO participó: deja de contar y sólo la coordinación puede
+    volver a etiquetarlo."""
+    parte = consolidado.participacion(con, parte_id)
+    if parte is None:
+        raise HTTPException(404, "Esa participación no existe.")
+    if parte["usuario_id"] != u["id"]:
+        raise HTTPException(403, "Sólo tú puedes responder por tu propia participación.")
+    consolidado.rechazar_participacion(con, parte_id)
+    con.commit()
+    avisar(request, "Registramos que no participaste. Si fue un error, la coordinación "
+                    "puede volver a etiquetarte.")
+    return RedirectResponse(_destino_seguro(volver, "/tablero?ver=compartidas"),
+                            status_code=303)
 
 
 def _borrar_definitivo(con: sqlite3.Connection, act_id: int) -> None:

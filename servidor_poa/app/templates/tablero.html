@@ -33,21 +33,24 @@
 
 <section class="card" style="margin-top:18px">
   {% set filtros = '&anio=' ~ anio ~ '&trimestre=' ~ trimestre ~ '&zona=' ~ (zona | urlencode) ~ '&q=' ~ (q | urlencode) %}
-  <form method="get" action="/tablero" class="row-controls">
-    {# Los <select> se envían con this.form.submit(), y esa llamada no incluye el
-       valor del botón de envío que se haya pulsado. Mientras «Mías/Todas» fueron
-       botones name="ver", cambiar de año o de zona borraba ese dato y el servidor
-       volvía a su default (ver="mias"): estando en «Todas» te devolvía a «Mías».
-       Ahora son enlaces con la vista puesta, y este campo la conserva al filtrar. #}
-    <input type="hidden" name="ver" value="{{ ver }}">
+
+  {# Pestañas de la vista. Van fuera del formulario de filtros; el <input hidden ver>
+     de abajo conserva la pestaña al cambiar de año, zona o trimestre. #}
+  <div class="seg" role="group" aria-label="Qué actividades ver" style="margin-bottom:14px">
+    <a href="/tablero?ver=mias{{ filtros }}" class="{{ 'on' if ver == 'mias' }}"
+       {% if ver == 'mias' %}aria-current="true"{% endif %}>Mis actividades</a>
+    <a href="/tablero?ver=compartidas{{ filtros }}" class="{{ 'on' if ver == 'compartidas' }}"
+       {% if ver == 'compartidas' %}aria-current="true"{% endif %}>
+      Actividades compartidas{% if n_compartidas %} <span class="tag" style="background:#fff3d6;color:#8a6100">{{ n_compartidas }}</span>{% endif %}
+    </a>
     {% if puede_todas %}
-    <div class="seg" role="group" aria-label="Qué actividades ver">
-      <a href="/tablero?ver=mias{{ filtros }}" class="{{ 'on' if ver == 'mias' }}"
-         {% if ver == 'mias' %}aria-current="true"{% endif %}>Mías</a>
-      <a href="/tablero?ver=todas{{ filtros }}" class="{{ 'on' if ver == 'todas' }}"
-         {% if ver == 'todas' %}aria-current="true"{% endif %}>Todas</a>
-    </div>
+    <a href="/tablero?ver=todas{{ filtros }}" class="{{ 'on' if ver == 'todas' }}"
+       {% if ver == 'todas' %}aria-current="true"{% endif %}>Todas</a>
     {% endif %}
+  </div>
+
+  <form method="get" action="/tablero" class="row-controls">
+    <input type="hidden" name="ver" value="{{ ver }}">
     <label class="fld" style="flex:1;min-width:200px">
       <span>Buscar</span>
       <input name="q" value="{{ q }}" placeholder="Título o Actividad POA…">
@@ -88,16 +91,23 @@
           <th>Quién participa</th>
           <th style="text-align:center">Fotos</th>
           <th style="text-align:center">POA</th>
+          {% if ver == 'compartidas' %}
+          <th style="text-align:center">¿Participaste?</th>
+          {% else %}
           <th style="text-align:center">Firma</th>
+          {% endif %}
         </tr>
       </thead>
       <tbody>
         {% for a in filas %}
-        <tr onclick="location.href='/actividades/{{ a.id }}'" style="cursor:pointer">
+        <tr {% if ver != 'compartidas' %}onclick="location.href='/actividades/{{ a.id }}'" style="cursor:pointer"{% endif %}>
           <td><span class="tag">T{{ a.trimestre or '—' }}</span></td>
           <td>
             <a href="/actividades/{{ a.id }}"><b>{{ a.titulo }}</b></a>
             <div class="mini">{{ a.actividad_poa }}</div>
+            {% if ver == 'compartidas' and a.etiquetada_por %}
+            <div class="mini">Te etiquetó: {{ a.etiquetada_por }}</div>
+            {% endif %}
           </td>
           <td>{{ a.zona or '—' }}</td>
           <td>
@@ -108,6 +118,21 @@
           </td>
           <td style="text-align:center">{{ a.n_fotos or '—' }}</td>
           <td style="text-align:center"><b>{{ a.total_informado | int }}</b></td>
+          {% if ver == 'compartidas' %}
+          <td style="text-align:center;white-space:nowrap">
+            {% if a.mi_parte_id %}
+            <form method="post" action="/participaciones/{{ a.mi_parte_id }}/confirmar" style="display:inline">
+              <input type="hidden" name="volver" value="/tablero?ver=compartidas">
+              <button class="btn sm primary" type="submit">Sí participé</button>
+            </form>
+            <form method="post" action="/participaciones/{{ a.mi_parte_id }}/rechazar" style="display:inline"
+                  onsubmit="return confirm('¿Confirmas que NO participaste en «{{ a.titulo }}»? Sólo la coordinación podría volver a etiquetarte.')">
+              <input type="hidden" name="volver" value="/tablero?ver=compartidas">
+              <button class="btn sm" type="submit">No participé</button>
+            </form>
+            {% endif %}
+          </td>
+          {% else %}
           <td style="text-align:center">
             {% if a.autorizada_en %}
             <span class="tag" style="background:#e4f5e8;color:#1c7a3f">✔ Firmada</span>
@@ -117,6 +142,7 @@
             <span class="mini">Sin firmar</span>
             {% endif %}
           </td>
+          {% endif %}
         </tr>
         {% endfor %}
       </tbody>
@@ -129,7 +155,11 @@
 
   {% else %}
   <div class="empty">
-    {% if ver == 'mias' %}
+    {% if ver == 'compartidas' %}
+      No tienes actividades compartidas por confirmar{% if trimestre %} del {{ trimestres[trimestre] }}{% endif %} de {{ anio }}.
+      Aquí aparecen las actividades donde alguien te etiquetó, para que confirmes si participaste.
+      <div class="actions"><a class="btn" href="/tablero?ver=mias&anio={{ anio }}">Ver mis actividades</a></div>
+    {% elif ver == 'mias' %}
       Todavía no participas en ninguna actividad{% if trimestre %} del {{ trimestres[trimestre] }}{% endif %} de {{ anio }}.
       <div class="actions">
         <a class="btn primary" href="/actividades/nueva">Registrar la primera</a>

@@ -122,6 +122,11 @@ CREATE TABLE IF NOT EXISTS participaciones (
   actividad_id  INTEGER NOT NULL REFERENCES actividades(id) ON DELETE CASCADE,
   usuario_id    INTEGER NOT NULL REFERENCES usuarios(id),
   resumen       TEXT NOT NULL DEFAULT '',
+  -- Estado de la participación: 'confirmada' (quien se registra a sí mismo o ya confirmó),
+  -- 'pendiente' (a alguien lo etiquetó otra persona y aún no confirma que participó) o
+  -- 'rechazada' (dijo que no participó). Sólo las confirmadas cuentan en el informe.
+  estado        TEXT NOT NULL DEFAULT 'confirmada',
+  agregada_por  INTEGER REFERENCES usuarios(id),   -- quién etiquetó (NULL en datos previos)
   creada_en     TEXT NOT NULL,
   actualizada_en TEXT NOT NULL,
   UNIQUE (actividad_id, usuario_id)
@@ -262,6 +267,14 @@ def _migrar(con: sqlite3.Connection) -> None:
     # Idempotente: tras aplicarse una vez, el WHERE ya no encuentra nada. No toca el login.
     con.execute("UPDATE usuarios SET nombre = 'Gerardo Calderón Magallón' "
                 "WHERE nombre = 'Gerardo Magallón Calderón'")
+
+    # v3.13: confirmación de participación (pestañas «mis actividades» / «compartidas»).
+    # Los datos previos quedan como 'confirmada': ya participaban antes de esta función.
+    parte_cols = {f["name"] for f in con.execute("PRAGMA table_info(participaciones)")}
+    if "estado" not in parte_cols:
+        con.execute("ALTER TABLE participaciones ADD COLUMN estado TEXT NOT NULL DEFAULT 'confirmada'")
+    if "agregada_por" not in parte_cols:
+        con.execute("ALTER TABLE participaciones ADD COLUMN agregada_por INTEGER REFERENCES usuarios(id)")
 
     # v3.5: coordenadas de cada zona para el mapa del informe.
     zona_cols = {f["name"] for f in con.execute("PRAGMA table_info(zonas)")}
