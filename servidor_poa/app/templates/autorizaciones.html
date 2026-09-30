@@ -11,6 +11,38 @@
 </div>
 {% endif %}
 
+{% if u.es_admin %}
+<section class="card" style="margin-bottom:16px">
+  <div class="section-head">
+    <div>
+      <h2>Responsables de proyecto que faltan por firmar</h2>
+      <p class="section-desc">Actividades ya enviadas por los empleados y en espera de la
+        firma de su responsable de proyecto.</p>
+    </div>
+  </div>
+  {% if por_responsable %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Responsable</th><th>Cargo</th><th style="text-align:center">Por firmar</th></tr></thead>
+      <tbody>
+        {% for r in por_responsable %}
+        <tr>
+          <td>{{ r.nombre }}</td>
+          <td>{{ r.cargo or '—' }}</td>
+          <td style="text-align:center">
+            <span class="tag" style="background:#fff3d6;color:#8a6100">{{ r.pendientes }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">Ningún responsable tiene firmas pendientes. Todo al día.</div>
+  {% endif %}
+</section>
+{% endif %}
+
 {% if not grupos %}
 <section class="card">
   <div class="empty">
