@@ -47,10 +47,39 @@
     <a href="/tablero?ver=todas{{ filtros }}" class="{{ 'on' if ver == 'todas' }}"
        {% if ver == 'todas' %}aria-current="true"{% endif %}>Todas</a>
     {% endif %}
+    {% if u.es_admin %}
+    <a href="/tablero?ver=empleado{{ filtros }}&empleado={{ empleado }}" class="{{ 'on' if ver == 'empleado' }}"
+       {% if ver == 'empleado' %}aria-current="true"{% endif %}>Por empleado</a>
+    {% endif %}
   </div>
+
+  {% if ver == 'empleado' %}
+  {# La coordinación no participa: elige a un empleado para ver y descargar sus actividades. #}
+  <form method="get" action="/tablero" class="row-controls" style="margin-bottom:12px">
+    <input type="hidden" name="ver" value="empleado">
+    <input type="hidden" name="anio" value="{{ anio }}">
+    <input type="hidden" name="trimestre" value="{{ trimestre }}">
+    <label class="fld" style="flex:1;min-width:240px">
+      <span>Empleado</span>
+      <select name="empleado" onchange="this.form.submit()">
+        <option value="0">Elige a una persona…</option>
+        {% for e in empleados %}
+        <option value="{{ e.id }}" {% if e.id == empleado %}selected{% endif %}>{{ e.nombre }}{% if e.cargo %} · {{ e.cargo }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% if empleado %}
+    <a class="btn primary" target="_blank"
+       href="/pdf/empleado/{{ empleado }}?anio={{ anio }}{% if trimestre %}&trimestre={{ trimestre }}{% endif %}">
+      Descargar PDF de {{ empleado_nombre }}
+    </a>
+    {% endif %}
+  </form>
+  {% endif %}
 
   <form method="get" action="/tablero" class="row-controls">
     <input type="hidden" name="ver" value="{{ ver }}">
+    <input type="hidden" name="empleado" value="{{ empleado }}">
     <label class="fld" style="flex:1;min-width:200px">
       <span>Buscar</span>
       <input name="q" value="{{ q }}" placeholder="Título o Actividad POA…">
@@ -159,7 +188,13 @@
 
   {% else %}
   <div class="empty">
-    {% if ver == 'compartidas' %}
+    {% if ver == 'empleado' %}
+      {% if empleado %}
+      {{ empleado_nombre }} no tiene actividades confirmadas{% if trimestre %} del {{ trimestres[trimestre] }}{% endif %} de {{ anio }}.
+      {% else %}
+      Elige a un empleado arriba para ver sus actividades y descargar su PDF.
+      {% endif %}
+    {% elif ver == 'compartidas' %}
       No tienes actividades compartidas por confirmar{% if trimestre %} del {{ trimestres[trimestre] }}{% endif %} de {{ anio }}.
       Aquí aparecen las actividades donde alguien te etiquetó, para que confirmes si participaste.
       <div class="actions"><a class="btn" href="/tablero?ver=mias&anio={{ anio }}">Ver mis actividades</a></div>

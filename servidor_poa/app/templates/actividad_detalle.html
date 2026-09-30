@@ -81,7 +81,9 @@
           <span class="tag">{{ p.cargo }}</span>
         </div>
 
-        {% if p.usuario_id == u.id or u.es_admin %}
+        {# Resumen: sólo el dueño lo edita; la coordinación y el responsable de la actividad
+           lo ven; los demás participantes no (es privado de cada quien). #}
+        {% if p.usuario_id == u.id %}
         <form method="post" action="/participaciones/{{ p.id }}/resumen" style="margin-top:10px">
           <label class="fld">
             <span>Resumen de intervención</span>
@@ -109,10 +111,33 @@
           <p class="muted">Ya tienes las {{ max_fotos }} fotos. Elimina alguna para subir otra.</p>
           {% endif %}
         </form>
-        {% else %}
-        <div class="mini" style="margin-top:8px">
-          {{ p.resumen or 'Sin resumen capturado todavía.' }}
+        {% elif ver_resumenes %}
+        <div class="fld" style="margin-top:10px">
+          <span>Resumen de intervención</span>
+          <div class="mini">{{ p.resumen or 'Sin resumen capturado todavía.' }}</div>
         </div>
+        {% else %}
+        <div class="mini muted" style="margin-top:8px">
+          El resumen es privado de cada participante.
+        </div>
+        {% endif %}
+
+        {# Nota / observación de revisión (del responsable de proyecto o la coordinación). #}
+        {% if p.nota and (p.usuario_id == u.id or ver_resumenes) %}
+        <div class="toast" style="margin-top:10px">
+          <div><b>Nota de revisión:</b> {{ p.nota }}
+            {% if p.nota_por_nombre %}<span class="mini"> — {{ p.nota_por_nombre }}</span>{% endif %}</div>
+        </div>
+        {% endif %}
+        {% if ver_resumenes %}
+        <form method="post" action="/participaciones/{{ p.id }}/nota" style="margin-top:8px">
+          <label class="fld">
+            <span>Nota / observación para {{ p.nombre }} (opcional)</span>
+            <textarea name="nota" rows="2"
+              placeholder="Corrección de redacción u observación sobre su participación.">{{ p.nota }}</textarea>
+          </label>
+          <div class="actions"><button class="btn sm" type="submit">Guardar nota</button></div>
+        </form>
         {% endif %}
 
         {% if p.fotos %}

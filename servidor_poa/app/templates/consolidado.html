@@ -74,25 +74,47 @@
     Cada actividad cuenta una sola vez, participen los que participen.
   </p>
 
-  {% for g in grupos %}
-  <div class="derived-head" style="margin-top:22px">{{ g.nombre }}</div>
-  <div class="list-grid">
-    {% for a in g.actividades %}
-    <a class="rep-card" href="/actividades/{{ a.id }}"
-       style="text-decoration:none;color:inherit;display:block">
-      <div class="rc-top">
-        <strong>{{ a.titulo }}</strong>
-        <span class="tag">{{ a.informado_periodo | int }}</span>
+  <form method="get" action="/pdf/consolidado" target="_blank" id="formConsolidado">
+    <input type="hidden" name="anio" value="{{ anio }}">
+    <input type="hidden" name="trimestre" value="{{ trimestre }}">
+    <input type="hidden" name="agrupar" value="{{ agrupar }}">
+
+    <div class="edit-banner" style="margin-top:20px">
+      <div>
+        <b>Elige qué actividades incluir en el consolidado</b>
+        <div class="section-desc">Por defecto van todas. Desmarca las que no quieras en el
+          PDF. Los totales del PDF se recalculan con lo seleccionado.</div>
       </div>
-      <div class="mini">
-        {{ a.actividad_poa }}<br>
-        <b>{{ a.participaciones | length }}</b> participante{{ 's' if a.participaciones | length != 1 else '' }}:
-        {{ a.participantes }}
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn sm" onclick="marcarTodas(true)">Marcar todas</button>
+        <button type="button" class="btn sm" onclick="marcarTodas(false)">Quitar todas</button>
+        <button type="submit" class="btn primary">Descargar seleccionadas (PDF)</button>
       </div>
-    </a>
+    </div>
+
+    {% for g in grupos %}
+    <div class="derived-head" style="margin-top:22px">{{ g.nombre }}</div>
+    <div class="list-grid">
+      {% for a in g.actividades %}
+      <label class="rep-card" style="display:block;cursor:pointer">
+        <div class="rc-top">
+          <span style="display:flex;gap:8px;align-items:center">
+            <input type="checkbox" name="act_ids" value="{{ a.id }}" checked class="chk-act">
+            <strong>{{ a.titulo }}</strong>
+          </span>
+          <span class="tag">{{ a.informado_periodo | int }}</span>
+        </div>
+        <div class="mini">
+          {{ a.actividad_poa }}<br>
+          <b>{{ a.participaciones | length }}</b> participante{{ 's' if a.participaciones | length != 1 else '' }}:
+          {{ a.participantes }}
+          · <a href="/actividades/{{ a.id }}" target="_blank">ver ficha</a>
+        </div>
+      </label>
+      {% endfor %}
+    </div>
     {% endfor %}
-  </div>
-  {% endfor %}
+  </form>
 
   {% else %}
   <div class="empty">
@@ -101,4 +123,16 @@
   </div>
   {% endif %}
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Marcar / quitar todas las casillas de actividades del consolidado.
+  function marcarTodas(v) {
+    document.querySelectorAll('.chk-act').forEach(c => { c.checked = v; });
+  }
+  // Que el clic en el enlace «ver ficha» no marque/desmarque la casilla del label.
+  document.querySelectorAll('.rep-card a').forEach(a =>
+    a.addEventListener('click', e => e.stopPropagation()));
+</script>
 {% endblock %}

@@ -9,7 +9,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -326,21 +326,36 @@ def salir(request: Request):
 
 @app.get("/tablero", response_class=HTMLResponse)
 def tablero(request: Request, anio: int | None = None, trimestre: int = 0, q: str = "",
-            zona: str = "", ver: str = "mias",
+            zona: str = "", ver: str = "mias", empleado: int = 0,
             u: sqlite3.Row = Depends(exigir_sesion), con: sqlite3.Connection = Depends(bd)):
     """El tablero ES la lista de actividades: no hay una pantalla aparte que repita.
 
     Pestañas: «mis actividades» (donde ya confirmé que participé), «actividades
     compartidas» (donde alguien me etiquetó y falta que confirme) y, para la
-    coordinación y los responsables, «todas» las de la Sección.
+    coordinación y los responsables, «todas» las de la Sección y «por empleado» (la
+    coordinación no participa: revisa y descarga lo de cada quien).
     """
     anio = anio or consolidado.anio_por_defecto(con)
     puede_todas = bool(u["es_admin"] or u["es_responsable"])
-    ver = ver if ver in ("mias", "compartidas", "todas") else "mias"
+    ver = ver if ver in ("mias", "compartidas", "todas", "empleado") else "mias"
     if ver == "todas" and not puede_todas:
         ver = "mias"
+    # «Por empleado» (ver el perfil de cada quien y descargar su PDF) es de la coordinación:
+    # ve los resúmenes de todas las actividades de la persona.
+    if ver == "empleado" and not u["es_admin"]:
+        ver = "todas" if puede_todas else "mias"
+    empleado = empleado if (ver == "empleado" and u["es_admin"]) else 0
 
-    if ver == "compartidas":
+    empleado_nombre = ""
+    if ver == "empleado":
+        if empleado:
+            fila = con.execute("SELECT nombre FROM usuarios WHERE id = ?", (empleado,)).fetchone()
+            empleado_nombre = fila["nombre"] if fila else ""
+            filas = consolidado.buscar(con, anio=anio, texto=q, zona=zona, trimestre=trimestre,
+                                       solo_de=empleado, relacion="participa") if fila else []
+        else:
+            filas = []
+    elif ver == "compartidas":
         filas = consolidado.buscar(con, anio=anio, texto=q, zona=zona, trimestre=trimestre,
                                    solo_de=u["id"], relacion="compartidas")
         info = consolidado.mis_compartidas_info(con, u["id"], anio)
@@ -358,6 +373,8 @@ def tablero(request: Request, anio: int | None = None, trimestre: int = 0, q: st
     return vista(request, "tablero.html", {
         "u": u, "anio": anio, "trimestre": trimestre, "q": q, "zona": zona, "ver": ver,
         "puede_todas": puede_todas,
+        "empleado": empleado, "empleado_nombre": empleado_nombre,
+        "empleados": consolidado.usuarios(con) if u["es_admin"] else [],
         "n_compartidas": consolidado.cuenta_compartidas(con, u["id"], anio),
         "anios": consolidado.anios_disponibles(con),
         "trimestres": TRIMESTRES,
@@ -511,6 +528,9 @@ def detalle(request: Request, act_id: int, u: sqlite3.Row = Depends(exigir_sesio
     return vista(request, "actividad_detalle.html", {
         "u": u, "act": act, "partes": partes, "confirmados": confirmados,
         "mi_parte": mi_parte,
+        # Resúmenes: cada quien ve el suyo; la coordinación y el responsable de la
+        # actividad ven los de todos y pueden dejar notas.
+        "ver_resumenes": _es_revisor(u, act),
         "puede_editar": consolidado.puede_editar(u, act),
         "puede_agregar": puede_agregar, "agregables": agregables,
         "max_fotos": fotos_mod.MAX_FOTOS_POR_PARTICIPACION,
@@ -665,6 +685,32 @@ def rechazar_participacion(request: Request, parte_id: int, volver: str = Form("
                     "puede volver a etiquetarte.")
     return RedirectResponse(_destino_seguro(volver, "/tablero?ver=compartidas"),
                             status_code=303)
+
+
+def _es_revisor(u: sqlite3.Row, act) -> bool:
+    """Quién revisa una actividad: la coordinación o el responsable de proyecto de ESA
+    actividad. Son los que ven los resúmenes de todos y pueden dejar notas."""
+    resp = act["responsable_id"] if not isinstance(act, dict) else act.get("responsable_id")
+    return bool(u["es_admin"] or (resp and resp == u["id"]))
+
+
+@app.post("/participaciones/{parte_id}/nota")
+def guardar_nota(request: Request, parte_id: int, nota: str = Form(""),
+                 u: sqlite3.Row = Depends(exigir_sesion),
+                 con: sqlite3.Connection = Depends(bd)):
+    """El responsable de proyecto o la coordinación deja una nota al empleado sobre su
+    resumen. El empleado la ve en su participación."""
+    parte = consolidado.participacion(con, parte_id)
+    if parte is None:
+        raise HTTPException(404, "Esa participación no existe.")
+    act = consolidado.actividad(con, parte["actividad_id"])
+    if not _es_revisor(u, act):
+        raise HTTPException(403, "Sólo la coordinación o el responsable de proyecto de la "
+                                 "actividad puede dejar notas.")
+    consolidado.guardar_nota(con, parte_id, nota, u["id"])
+    con.commit()
+    avisar(request, "Nota guardada." if nota.strip() else "Nota eliminada.")
+    return RedirectResponse(f"/actividades/{parte['actividad_id']}", status_code=303)
 
 
 def _borrar_definitivo(con: sqlite3.Connection, act_id: int) -> None:
@@ -829,10 +875,13 @@ def revocar_firma(request: Request, act_id: int, u: sqlite3.Row = Depends(exigir
 @app.get("/autorizaciones", response_class=HTMLResponse)
 def autorizaciones(request: Request, u: sqlite3.Row = Depends(exigir_sesion),
                    con: sqlite3.Connection = Depends(bd)):
-    """Bandeja del responsable: solicitudes de firma agrupadas por quién las pidió."""
+    """Bandeja del responsable: solicitudes de firma agrupadas por quién las pidió.
+    Para la coordinación, además, el resumen de qué responsables faltan por firmar."""
     grupos = consolidado.pendientes_para(con, u["id"])
+    por_responsable = consolidado.pendientes_por_responsable(con) if u["es_admin"] else []
     return vista(request, "autorizaciones.html", {
         "u": u, "grupos": grupos, "tengo_firma": bool(u["firma"]),
+        "por_responsable": por_responsable,
         "trimestres": TRIMESTRES,
     })
 
@@ -1095,13 +1144,21 @@ def ver_consolidado(request: Request, anio: int | None = None, trimestre: int = 
 
 @app.get("/pdf/consolidado")
 def pdf_consolidado(anio: int | None = None, trimestre: int = 0, agrupar: str = "zona",
-                    fotos: int = 1, u: sqlite3.Row = Depends(exigir_consolidado),
+                    fotos: int = 1, act_ids: list[int] | None = Query(None),
+                    u: sqlite3.Row = Depends(exigir_consolidado),
                     con: sqlite3.Connection = Depends(bd)):
+    """El consolidado se arma solo con todas las actividades del periodo. Si la coordinación
+    marcó cuáles incluir (`act_ids`), sólo salen ésas."""
     anio = anio or consolidado.anio_por_defecto(con)
     agrupar = agrupar if agrupar in ("zona", "eje") else "zona"
     grupos = consolidado.armar(con, anio, trimestre, agrupar)
+    if act_ids:
+        elegidas = set(act_ids)
+        grupos = [{**g, "actividades": [a for a in g["actividades"] if a["id"] in elegidas]}
+                  for g in grupos]
+        grupos = [g for g in grupos if g["actividades"]]
     if not grupos:
-        raise HTTPException(404, "No hay actividades reportadas en ese periodo.")
+        raise HTTPException(404, "No hay actividades para incluir en el consolidado.")
     contenido = pdf.consolidado(con, grupos, anio, trimestre, agrupar, con_fotos=bool(fotos))
     etiqueta = f"T{trimestre}" if trimestre else "anual"
     return Response(contenido, media_type="application/pdf", headers={
@@ -1148,6 +1205,28 @@ def pdf_mias(anio: int | None = None, trimestre: int = 0,
         "Content-Disposition": f'inline; filename="POA_mis_actividades_{anio}_{etiqueta}.pdf"'})
 
 
+@app.get("/pdf/empleado/{uid}")
+def pdf_empleado(uid: int, anio: int | None = None, trimestre: int = 0,
+                 u: sqlite3.Row = Depends(exigir_admin),
+                 con: sqlite3.Connection = Depends(bd)):
+    """La coordinación descarga el PDF de un empleado: sus actividades del periodo con su
+    resumen y su evidencia, una hoja por actividad."""
+    persona = con.execute("SELECT id, nombre FROM usuarios WHERE id = ?", (uid,)).fetchone()
+    if persona is None:
+        raise HTTPException(404, "Esa persona no existe.")
+    anio = anio or consolidado.anio_por_defecto(con)
+    trimestre = trimestre if trimestre in (1, 2, 3, 4) else 0
+    actividades = consolidado.actividades_de(con, uid, anio, trimestre)
+    if not actividades:
+        raise HTTPException(404, f"{persona['nombre']} no tiene actividades confirmadas en "
+                                 "ese periodo.")
+    contenido = pdf.de_actividades(con, actividades, con_fotos=True, solo_usuario=uid)
+    etiqueta = f"T{trimestre}" if trimestre else "anual"
+    apellido = norm(persona["nombre"]).replace(" ", "_")
+    return Response(contenido, media_type="application/pdf", headers={
+        "Content-Disposition": f'inline; filename="POA_{apellido}_{anio}_{etiqueta}.pdf"'})
+
+
 @app.get("/pdf/actividad/{act_id}")
 def pdf_actividad(act_id: int, u: sqlite3.Row = Depends(exigir_sesion),
                   con: sqlite3.Connection = Depends(bd)):
@@ -1161,9 +1240,10 @@ def pdf_actividad(act_id: int, u: sqlite3.Row = Depends(exigir_sesion),
         "SELECT 1 FROM participaciones WHERE actividad_id = ? AND usuario_id = ?",
         (act_id, u["id"]),
     ).fetchone()
-    # Un empleado sólo genera el PDF de actividades en las que participa; la
-    # coordinación y los responsables pueden generar el de cualquiera.
-    if not (u["es_admin"] or u["es_responsable"]) and not participa:
+    # El compilado (con los resúmenes) lo generan quien participa, la coordinación y el
+    # responsable de proyecto de ESA actividad. Un responsable de otra actividad no ve los
+    # resúmenes ajenos.
+    if not participa and not _es_revisor(u, act):
         raise HTTPException(403, "Sólo puedes ver el PDF de tus propias actividades.")
     # El PDF se habilita cuando el responsable firma y autoriza. La coordinación puede
     # verlo antes (supervisión); el resto, sólo una vez autorizada.
@@ -1229,6 +1309,64 @@ def alternar_activo(request: Request, uid: int, u: sqlite3.Row = Depends(exigir_
         raise HTTPException(400, "No puedes desactivar tu propia cuenta.")
     con.execute("UPDATE usuarios SET activo = 1 - activo WHERE id = ?", (uid,))
     con.commit()
+    return RedirectResponse("/admin/usuarios", status_code=303)
+
+
+@app.post("/admin/usuarios/nueva")
+def crear_usuario(request: Request, nombre: str = Form(...), cargo: str = Form(""),
+                  es_responsable: int = Form(0), es_admin: int = Form(0),
+                  u: sqlite3.Row = Depends(exigir_admin),
+                  con: sqlite3.Connection = Depends(bd)):
+    """Alta de personal desde el panel. Entra sin PIN: lo define en su primer ingreso."""
+    if len(nombre.strip()) < 3:
+        avisar(request, "Escribe el nombre completo de la persona.")
+        return RedirectResponse("/admin/usuarios", status_code=303)
+    consolidado.crear_usuario(con, nombre, cargo, bool(es_responsable), bool(es_admin))
+    con.commit()
+    avisar(request, f"Se agregó a {nombre.strip()}. Aparecerá en la lista de entrada y "
+                    "definirá su PIN la primera vez que entre.")
+    return RedirectResponse("/admin/usuarios", status_code=303)
+
+
+@app.post("/admin/usuarios/{uid}/editar")
+def editar_usuario(request: Request, uid: int, nombre: str = Form(...),
+                   cargo: str = Form(""), es_responsable: int = Form(0),
+                   es_admin: int = Form(0), u: sqlite3.Row = Depends(exigir_admin),
+                   con: sqlite3.Connection = Depends(bd)):
+    objetivo = con.execute("SELECT id FROM usuarios WHERE id = ?", (uid,)).fetchone()
+    if objetivo is None:
+        raise HTTPException(404, "Esa persona no existe.")
+    if len(nombre.strip()) < 3:
+        avisar(request, "El nombre no puede quedar vacío.")
+        return RedirectResponse("/admin/usuarios", status_code=303)
+    # Nadie puede quitarse a sí mismo la coordinación (evita quedarse sin acceso admin).
+    es_admin = 1 if uid == u["id"] else es_admin
+    consolidado.editar_usuario(con, uid, nombre, cargo, bool(es_responsable), bool(es_admin))
+    con.commit()
+    avisar(request, "Datos actualizados.")
+    return RedirectResponse("/admin/usuarios", status_code=303)
+
+
+@app.post("/admin/usuarios/{uid}/eliminar")
+def eliminar_usuario(request: Request, uid: int, u: sqlite3.Row = Depends(exigir_admin),
+                     con: sqlite3.Connection = Depends(bd)):
+    """Borra a una persona SÓLO si no tiene datos ligados; si los tiene, se desactiva para
+    no perder sus participaciones ni sus actividades."""
+    objetivo = con.execute("SELECT nombre FROM usuarios WHERE id = ?", (uid,)).fetchone()
+    if objetivo is None:
+        raise HTTPException(404, "Esa persona no existe.")
+    if uid == u["id"]:
+        raise HTTPException(400, "No puedes eliminar tu propia cuenta.")
+    if consolidado.referencias_usuario(con, uid) > 0:
+        con.execute("UPDATE usuarios SET activo = 0 WHERE id = ?", (uid,))
+        con.commit()
+        avisar(request, f"{objetivo['nombre']} tiene actividades o participaciones ligadas, "
+                        "así que no se puede borrar sin perder esos datos. Se desactivó en su "
+                        "lugar (deja de aparecer en la lista).")
+        return RedirectResponse("/admin/usuarios", status_code=303)
+    consolidado.eliminar_usuario(con, uid)
+    con.commit()
+    avisar(request, f"Se eliminó a {objetivo['nombre']}.")
     return RedirectResponse("/admin/usuarios", status_code=303)
 
 

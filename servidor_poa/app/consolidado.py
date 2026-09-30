@@ -80,6 +80,48 @@ def usuarios(con: sqlite3.Connection) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+# ------------------------------------------------------------- alta/edición de personal
+
+def crear_usuario(con: sqlite3.Connection, nombre: str, cargo: str,
+                  es_responsable: bool, es_admin: bool, email: str = "") -> int:
+    """Da de alta a una persona. El identificador (para referirse a ella sin acentos) se
+    deriva del nombre y se hace único."""
+    from .auth import usuario_desde_nombre
+    tomados = {r["usuario"] for r in con.execute("SELECT usuario FROM usuarios")}
+    usuario = usuario_desde_nombre(nombre, tomados)
+    cur = con.execute(
+        """INSERT INTO usuarios (usuario, nombre, cargo, email, es_responsable, es_admin,
+                                 activo, creado_en)
+           VALUES (?, ?, ?, ?, ?, ?, 1, ?)""",
+        (usuario, nombre.strip(), cargo.strip(), email.strip(),
+         int(es_responsable), int(es_admin), ahora()))
+    return int(cur.lastrowid)
+
+
+def editar_usuario(con: sqlite3.Connection, uid: int, nombre: str, cargo: str,
+                   es_responsable: bool, es_admin: bool) -> None:
+    con.execute(
+        "UPDATE usuarios SET nombre = ?, cargo = ?, es_responsable = ?, es_admin = ? "
+        "WHERE id = ?",
+        (nombre.strip(), cargo.strip(), int(es_responsable), int(es_admin), uid))
+
+
+def referencias_usuario(con: sqlite3.Connection, uid: int) -> int:
+    """Cuántos datos dependen de la persona (participaciones o actividades). Si hay alguno,
+    no se puede borrar sin perder información: se desactiva en su lugar."""
+    p = con.execute("SELECT COUNT(*) c FROM participaciones WHERE usuario_id = ?",
+                    (uid,)).fetchone()["c"]
+    a = con.execute(
+        """SELECT COUNT(*) c FROM actividades
+            WHERE creada_por = ? OR responsable_id = ? OR autorizada_por = ?
+               OR eliminada_por = ?""", (uid, uid, uid, uid)).fetchone()["c"]
+    return p + a
+
+
+def eliminar_usuario(con: sqlite3.Connection, uid: int) -> None:
+    con.execute("DELETE FROM usuarios WHERE id = ?", (uid,))
+
+
 def zonas_usadas(con: sqlite3.Connection) -> list[str]:
     return [f["nombre"] for f in con.execute(
         "SELECT nombre FROM zonas ORDER BY usos DESC, nombre")]
@@ -283,6 +325,25 @@ def cuenta_pendientes(con: sqlite3.Connection, uid: int) -> int:
         (uid,)).fetchone()["c"]
 
 
+def pendientes_por_responsable(con: sqlite3.Connection,
+                               anio: int | None = None) -> list[dict]:
+    """Por responsable de proyecto, cuántas actividades esperan su firma (ya se solicitó y
+    aún no autoriza). Para que la coordinación vea quién falta por firmar."""
+    cond = ["a.autorizacion_solicitada != ''", "a.autorizada_en = ''",
+            "a.eliminada_en = ''", "a.responsable_id IS NOT NULL"]
+    params: list = []
+    if anio:
+        cond.append("a.anio = ?")
+        params.append(anio)
+    filas = con.execute(
+        "SELECT r.id, r.nombre, r.cargo, COUNT(*) AS pendientes "
+        "FROM actividades a JOIN usuarios r ON r.id = a.responsable_id "
+        "WHERE " + " AND ".join(cond) +
+        " GROUP BY r.id, r.nombre, r.cargo ORDER BY pendientes DESC, r.nombre",
+        params).fetchall()
+    return [dict(f) for f in filas]
+
+
 def buscar(con: sqlite3.Connection, anio: int, texto: str = "", zona: str = "",
            trimestre: int = 0, solo_de: int | None = None,
            relacion: str | None = None) -> list[dict]:
@@ -316,6 +377,13 @@ def buscar(con: sqlite3.Connection, anio: int, texto: str = "", zona: str = "",
                 "a.creada_por <> ? AND EXISTS (SELECT 1 FROM participaciones p "
                 "WHERE p.actividad_id = a.id AND p.usuario_id = ? AND p.estado <> 'rechazada')")
             params += [solo_de, solo_de]
+        elif relacion == "participa":
+            # Todas en las que esa persona participa confirmada (la vista por empleado de
+            # la coordinación, que no participa pero revisa lo de cada quien).
+            condiciones.append(
+                "EXISTS (SELECT 1 FROM participaciones p WHERE p.actividad_id = a.id "
+                "AND p.usuario_id = ? AND p.estado = 'confirmada')")
+            params.append(solo_de)
         else:
             condiciones.append("EXISTS (SELECT 1 FROM participaciones p "
                                "WHERE p.actividad_id = a.id AND p.usuario_id = ?)")
@@ -444,6 +512,15 @@ def rechazar_participacion(con: sqlite3.Connection, parte_id: int) -> None:
                 "WHERE id = ?", (ahora(), parte_id))
 
 
+def guardar_nota(con: sqlite3.Connection, parte_id: int, nota: str, por: int) -> None:
+    """El responsable de proyecto o la coordinación deja una nota/observación al empleado
+    sobre su resumen (corregir redacción, etc.). Vaciarla la quita."""
+    con.execute(
+        "UPDATE participaciones SET nota = ?, nota_por = ?, nota_en = ? WHERE id = ?",
+        (nota.strip(), por if nota.strip() else None,
+         ahora() if nota.strip() else "", parte_id))
+
+
 def reetiquetar_participacion(con: sqlite3.Connection, act_id: int, uid: int,
                               por: int) -> None:
     """La coordinación vuelve a etiquetar a alguien que había rechazado: regresa a
@@ -466,8 +543,10 @@ def participaciones(con: sqlite3.Connection, act_id: int,
     if solo_confirmadas:
         cond += " AND p.estado = 'confirmada'"
     filas = con.execute(
-        f"""SELECT p.*, u.nombre, u.cargo, u.grupo, u.firma, u.es_responsable
+        f"""SELECT p.*, u.nombre, u.cargo, u.grupo, u.firma, u.es_responsable,
+                   nb.nombre AS nota_por_nombre
              FROM participaciones p JOIN usuarios u ON u.id = p.usuario_id
+        LEFT JOIN usuarios nb ON nb.id = p.nota_por
             WHERE {cond}
             ORDER BY p.creada_en""", (act_id,)).fetchall()
     salida = []
