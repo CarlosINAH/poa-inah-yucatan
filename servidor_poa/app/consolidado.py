@@ -193,10 +193,11 @@ def actividad(con: sqlite3.Connection, act_id: int) -> sqlite3.Row | None:
 
 
 def puede_editar(u: sqlite3.Row, act: sqlite3.Row) -> bool:
-    """La ficha POA la toca quien la creó, su responsable de proyecto o la coordinación.
-    El resumen y las fotos de cada quien son otra cosa: eso siempre es del dueño."""
-    return bool(u["es_admin"] or act["creada_por"] == u["id"]
-                or (act["responsable_id"] and act["responsable_id"] == u["id"]))
+    """La ficha POA sólo la edita quien la registró (el empleado). La coordinación y los
+    responsables de proyecto no ingresan ni editan actividades: observan y, si algo debe
+    corregirse, lo piden con una nota. El resumen y las fotos siempre son del dueño."""
+    creador = act["creada_por"] if not isinstance(act, dict) else act.get("creada_por")
+    return bool(creador == u["id"])
 
 
 # ------------------------------------------------------------------------- papelera

@@ -353,6 +353,19 @@ def tablero(request: Request, anio: int | None = None, trimestre: int = 0, q: st
             empleado_nombre = fila["nombre"] if fila else ""
             filas = consolidado.buscar(con, anio=anio, texto=q, zona=zona, trimestre=trimestre,
                                        solo_de=empleado, relacion="participa") if fila else []
+            # Para que la coordinación revise: el resumen de esa persona en cada actividad y
+            # su nota (aquí es donde el admin ve los resúmenes y deja observaciones).
+            for f in filas:
+                pr = con.execute(
+                    """SELECT p.id, p.resumen, p.nota, nb.nombre AS nota_por_nombre
+                         FROM participaciones p
+                    LEFT JOIN usuarios nb ON nb.id = p.nota_por
+                        WHERE p.actividad_id = ? AND p.usuario_id = ?
+                          AND p.estado = 'confirmada'""", (f["id"], empleado)).fetchone()
+                f["emp_parte_id"] = pr["id"] if pr else None
+                f["emp_resumen"] = pr["resumen"] if pr else ""
+                f["emp_nota"] = pr["nota"] if pr else ""
+                f["emp_nota_por"] = pr["nota_por_nombre"] if pr else None
         else:
             filas = []
     elif ver == "compartidas":
@@ -528,9 +541,10 @@ def detalle(request: Request, act_id: int, u: sqlite3.Row = Depends(exigir_sesio
     return vista(request, "actividad_detalle.html", {
         "u": u, "act": act, "partes": partes, "confirmados": confirmados,
         "mi_parte": mi_parte,
-        # Resúmenes: cada quien ve el suyo; la coordinación y el responsable de la
-        # actividad ven los de todos y pueden dejar notas.
-        "ver_resumenes": _es_revisor(u, act),
+        # Resúmenes en la ficha: cada quien ve el suyo; el RESPONSABLE de proyecto de esta
+        # actividad ve los de todos (para revisar y firmar). La coordinación (aunque sea
+        # admin) NO los ve aquí: los revisa en «Actividades → Por empleado».
+        "ver_resumenes": bool(act["responsable_id"] and act["responsable_id"] == u["id"]),
         "puede_editar": consolidado.puede_editar(u, act),
         "puede_agregar": puede_agregar, "agregables": agregables,
         "max_fotos": fotos_mod.MAX_FOTOS_POR_PARTICIPACION,
@@ -696,7 +710,7 @@ def _es_revisor(u: sqlite3.Row, act) -> bool:
 
 @app.post("/participaciones/{parte_id}/nota")
 def guardar_nota(request: Request, parte_id: int, nota: str = Form(""),
-                 u: sqlite3.Row = Depends(exigir_sesion),
+                 volver: str = Form(""), u: sqlite3.Row = Depends(exigir_sesion),
                  con: sqlite3.Connection = Depends(bd)):
     """El responsable de proyecto o la coordinación deja una nota al empleado sobre su
     resumen. El empleado la ve en su participación."""
@@ -710,7 +724,8 @@ def guardar_nota(request: Request, parte_id: int, nota: str = Form(""),
     consolidado.guardar_nota(con, parte_id, nota, u["id"])
     con.commit()
     avisar(request, "Nota guardada." if nota.strip() else "Nota eliminada.")
-    return RedirectResponse(f"/actividades/{parte['actividad_id']}", status_code=303)
+    return RedirectResponse(_destino_seguro(volver, f"/actividades/{parte['actividad_id']}"),
+                            status_code=303)
 
 
 def _borrar_definitivo(con: sqlite3.Connection, act_id: int) -> None:

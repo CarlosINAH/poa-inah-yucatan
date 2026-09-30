@@ -4,11 +4,15 @@
 {% block subtitulo %}POA {{ anio }}{% if trimestre %} · {{ trimestres[trimestre] }}{% endif %}{% endblock %}
 
 {% block acciones %}
+{# Registrar y descargar «lo mío» son acciones de empleado: en las vistas de
+   observación (Todas / Por empleado) la coordinación sólo revisa, no ingresa. #}
+{% if ver in ('mias', 'compartidas') %}
 <a class="btn primary sm" href="/actividades/nueva">Registrar actividad</a>
 <a class="btn sm" target="_blank"
    href="/pdf/mias/vista-previa?anio={{ anio }}{% if trimestre %}&trimestre={{ trimestre }}{% endif %}">Vista previa (revisar mis firmas)</a>
 <a class="btn sm" target="_blank"
    href="/pdf/mias?anio={{ anio }}{% if trimestre %}&trimestre={{ trimestre }}{% endif %}">Ver mis actividades firmadas (PDF)</a>
+{% endif %}
 {% endblock %}
 
 {% block contenido %}
@@ -109,7 +113,47 @@
     <button class="btn" type="submit">Filtrar</button>
   </form>
 
-  {% if filas %}
+  {% if ver == 'empleado' and empleado and filas %}
+  {# Revisión por empleado: la coordinación ve el resumen de cada actividad de la persona
+     y puede dejarle una nota (solicitar corrección). #}
+  <div class="stack">
+    {% for a in filas %}
+    <div class="rep-card" style="margin-bottom:14px">
+      <div class="rc-top">
+        <span><span class="tag">T{{ a.trimestre or '—' }}</span>
+          <a href="/actividades/{{ a.id }}" target="_blank"><b>{{ a.titulo }}</b></a></span>
+        <span>
+          {% if a.autorizada_en %}<span class="tag" style="background:#e4f5e8;color:#1c7a3f">✔ Firmada</span>
+          {% elif a.autorizacion_solicitada %}<span class="tag" style="background:#fff3d6;color:#8a6100">⏳ Solicitada</span>
+          {% else %}<span class="mini">Sin firmar</span>{% endif %}
+        </span>
+      </div>
+      <div class="mini">{{ a.actividad_poa }} · {{ a.zona or 'Sin zona' }}</div>
+      <div class="fld" style="margin-top:8px">
+        <span>Resumen de {{ empleado_nombre }}</span>
+        <div class="mini">{{ a.emp_resumen or 'Sin resumen capturado todavía.' }}</div>
+      </div>
+      {% if a.emp_nota %}
+      <div class="toast" style="margin-top:8px"><div><b>Nota actual:</b> {{ a.emp_nota }}
+        {% if a.emp_nota_por %}<span class="mini"> — {{ a.emp_nota_por }}</span>{% endif %}</div></div>
+      {% endif %}
+      {% if a.emp_parte_id %}
+      <form method="post" action="/participaciones/{{ a.emp_parte_id }}/nota" style="margin-top:8px">
+        <input type="hidden" name="volver" value="/tablero?ver=empleado&empleado={{ empleado }}&anio={{ anio }}&trimestre={{ trimestre }}">
+        <label class="fld"><span>Nota / solicitar corrección (opcional)</span>
+          <textarea name="nota" rows="2"
+            placeholder="Observación para {{ empleado_nombre }} sobre esta actividad.">{{ a.emp_nota }}</textarea></label>
+        <div class="actions"><button class="btn sm primary" type="submit">Guardar nota</button></div>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  <p class="muted" style="margin-top:8px">
+    {{ filas | length }} actividad{{ 'es' if filas | length != 1 else '' }} de {{ empleado_nombre }}.
+  </p>
+
+  {% elif filas %}
   <div class="table-wrap">
     <table class="lista">
       <thead>
