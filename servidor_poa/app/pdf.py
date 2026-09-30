@@ -8,6 +8,7 @@ El consolidado hace lo mismo para todas las actividades del periodo, agrupadas.
 from __future__ import annotations
 
 import io
+import random
 import sqlite3
 from datetime import date
 from pathlib import Path
@@ -66,7 +67,7 @@ E = {
                                textColor=colors.HexColor("#5b6b7a"), spaceAfter=6),
     "et_seccion": ParagraphStyle("et_seccion", parent=_ss["Normal"], fontSize=8.5, leading=11,
                                  textColor=ACENTO, fontName="Helvetica-Bold",
-                                 spaceBefore=9, spaceAfter=3),
+                                 spaceBefore=6, spaceAfter=3),
     "cap_mapa": ParagraphStyle("cap_mapa", parent=_ss["Normal"], fontSize=9.5, leading=12,
                                textColor=TINTA, alignment=TA_CENTER, fontName="Helvetica-Bold",
                                spaceBefore=3, spaceAfter=2),
@@ -77,8 +78,12 @@ E = {
                                 textColor=colors.HexColor("#5b6b7a"), alignment=TA_CENTER),
 }
 
-_MAPA_ANCHO = 140 * mm            # ancho del mapa en la hoja (centrado)
-_MAPA_ALTO = _MAPA_ANCHO * 360 / 640   # el servicio devuelve 640x360 fijo
+_MAPA_LADO_ANCHO = 64 * mm        # ancho del mapa cuando va al lado del objetivo
+
+# Cuántas fotos lleva la hoja de evidencia del informe colectivo (compilado): se
+# eligen al azar del total que compartieron todos los participantes. En la ficha
+# individual, en cambio, cada quien se lleva TODAS sus propias fotos.
+FOTOS_AZAR_COLECTIVO = 4
 
 
 def _esc(texto) -> str:
@@ -161,12 +166,24 @@ def _campo(etiqueta: str, valor: str) -> Table:
     return t
 
 
+# Celda etiqueta/valor apretada: sin el relleno por defecto de ReportLab (6pt por lado),
+# que era lo que inflaba la Ficha POA y la sacaba de una sola hoja.
+_CELDA_COMPACTA = TableStyle([
+    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+    ("TOPPADDING", (0, 0), (0, 0), 0), ("BOTTOMPADDING", (0, 0), (0, 0), 0),
+    ("TOPPADDING", (0, 1), (0, 1), 0), ("BOTTOMPADDING", (0, 1), (0, 1), 0),
+])
+
+
 def _rejilla(pares: list[tuple[str, str]]) -> Table:
-    """Dos columnas de etiqueta/valor."""
+    """Dos columnas de etiqueta/valor, apretadas para que quepa toda la ficha."""
     filas, buf = [], []
     for etiqueta, valor in pares:
-        buf.append(Table([[Paragraph(_esc(etiqueta), E["etiqueta"])],
-                          [Paragraph(_esc(valor) or "—", E["valor"])]], colWidths=[84 * mm]))
+        celda = Table([[Paragraph(_esc(etiqueta), E["etiqueta"])],
+                       [Paragraph(_esc(valor) or "—", E["valor"])]], colWidths=[84 * mm])
+        celda.setStyle(_CELDA_COMPACTA)
+        buf.append(celda)
         if len(buf) == 2:
             filas.append(buf)
             buf = []
@@ -182,6 +199,13 @@ def _rejilla(pares: list[tuple[str, str]]) -> Table:
     return t
 
 
+def _num(v) -> str:
+    """Número sin decimales inútiles: 3.0 → «3», 3.5 → «3.5»."""
+    if isinstance(v, float):
+        return str(int(v)) if v == int(v) else f"{v:g}"
+    return str(v)
+
+
 def _tabla_cifras(act: dict) -> Table:
     cab = ["", "Anual", "1er T", "2do T", "3er T", "4to T", "Total"]
     plan = ["Planeado", act["planeado_anual"], act["plan_t1"], act["plan_t2"],
@@ -189,13 +213,8 @@ def _tabla_cifras(act: dict) -> Table:
     inf = ["Informado", "—", act["inf_t1"], act["inf_t2"], act["inf_t3"],
            act["inf_t4"], act["total_informado"]]
 
-    def limpio(v):
-        if isinstance(v, float):
-            return str(int(v)) if v == int(v) else f"{v:g}"
-        return str(v)
-
     datos = [[Paragraph(_esc(c), E["th"]) for c in cab],
-             [limpio(v) for v in plan], [limpio(v) for v in inf]]
+             [_num(v) for v in plan], [_num(v) for v in inf]]
     t = Table(datos, colWidths=[26 * mm, *[24.6 * mm] * 6])
     t.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), ACENTO),
@@ -210,6 +229,43 @@ def _tabla_cifras(act: dict) -> Table:
         ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
     ]))
     return t
+
+
+def _ficha_poa(act: dict) -> list:
+    """Sección «Ficha POA» (la 2 de la plataforma): datos del catálogo y de la captura,
+    en una rejilla compacta de dos columnas para que quepa toda la información."""
+    ubicacion = " · ".join(p for p in (act.get("zona"), act.get("municipio")) if p)
+    pares = [
+        ("Actividad POA", act.get("actividad_poa")),
+        ("Unidad de medida", act.get("unidad_medida")),
+        ("Programa operativo", act.get("programa_operativo")),
+        ("Eje", act.get("eje")),
+        ("Línea de acción ENC", act.get("linea_accion_enc")),
+        ("Eje estratégico ENC", act.get("eje_estrategico_enc")),
+        ("Programas nacionales", act.get("programa_nacional")),
+        ("Fechas de ejecución", act.get("fechas_ejecucion")),
+        ("Ubicación", ubicacion),
+        ("¿En planeación?", act.get("planeacion")),
+        ("Restaurador responsable", act.get("responsable_nombre")),
+        ("Cargo / puesto", act.get("responsable_cargo")),
+    ]
+    return [_etiqueta_seccion("Ficha POA"), _rejilla(pares)]
+
+
+def _bloque_cifras(act: dict) -> list:
+    """Sección «Cifras» (la 3 de la plataforma): la rejilla planeado/informado del POA,
+    el planeado anual, las observaciones y quién la registró."""
+    piezas = [_etiqueta_seccion("Cifras"), _tabla_cifras(act)]
+    piezas.append(Spacer(1, 2))
+    piezas.append(Paragraph(f"Planeado anual: <b>{_num(act.get('planeado_anual', 0))}</b>",
+                            E["pie_foto"]))
+    if act.get("observaciones"):
+        piezas.append(Spacer(1, 3))
+        piezas.append(_campo("Observaciones", act["observaciones"]))
+    if act.get("creador_nombre"):
+        piezas.append(Spacer(1, 2))
+        piezas.append(Paragraph(f"Registró: {_esc(act['creador_nombre'])}", E["pie_foto"]))
+    return piezas
 
 
 def _banda_participante(parte: dict) -> Table:
@@ -303,13 +359,13 @@ def _imagen_firma(archivo: str, ancho_max: float, alto_max: float):
 
 def _celda_firma(nombre: str, cargo: str, etiqueta: str, firma_archivo: str) -> Table:
     """Una casilla de firma: la firma dibujada sobre la línea, con nombre y rol debajo."""
-    firma = _imagen_firma(firma_archivo, 46 * mm, 13 * mm)
-    tope = firma if firma is not None else Spacer(1, 13 * mm)
+    firma = _imagen_firma(firma_archivo, 46 * mm, 11 * mm)
+    tope = firma if firma is not None else Spacer(1, 11 * mm)
     rol = _esc(etiqueta) + (f" · {_esc(cargo)}" if cargo else "")
     t = Table([[tope],
                [Paragraph(_esc(nombre) or "—", E["firma_nombre"])],
                [Paragraph(rol, E["firma_rol"])]],
-              colWidths=[52 * mm], rowHeights=[15 * mm, None, None])
+              colWidths=[52 * mm], rowHeights=[12 * mm, None, None])
     t.setStyle(TableStyle([
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
         ("VALIGN", (0, 0), (0, 0), "BOTTOM"),
@@ -348,7 +404,7 @@ def _firmas_actividad(act: dict, partes: list | None = None,
     t.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("TOPPADDING", (0, 0), (-1, -1), 10), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 7), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
     ]))
 
     if act.get("autorizada_en"):
@@ -357,7 +413,7 @@ def _firmas_actividad(act: dict, partes: list | None = None,
     else:
         leyenda = "Pendiente de autorización del responsable de proyecto."
 
-    piezas = [Spacer(1, 6 * mm), _etiqueta_seccion("Firmas"), t]
+    piezas = [Spacer(1, 4 * mm), _etiqueta_seccion("Firmas"), t]
     if vista_previa:
         # En el borrador, lo que importa es que el empleado confirme SU firma.
         if act.get("autorizacion_solicitada") or act.get("autorizada_en"):
@@ -377,28 +433,45 @@ def _fotos_ordenadas(fotos: list) -> list:
     return sorted(fotos, key=lambda f: (-f["destacada"], f["orden"], f["id"]))
 
 
-def _bloque_ubicacion(con, act: dict) -> list:
-    """Etiqueta «Ubicación» + mapa con el nombre del sitio, o respaldo en texto."""
+def _mapa_flowable(con, act: dict, ancho: float):
+    """(imagen del mapa | None, nombre del sitio). El mapa se escala al ancho pedido,
+    conservando la proporción 640×360 del servicio."""
     zona = act.get("zona") or ""
     municipio = act.get("municipio") or ""
     # Etiqueta y consulta de geocodificación: «comisaría/sitio, municipio».
     lugar = ", ".join(p for p in (zona, municipio) if p)
     lat, lon = act.get("mapa_lat"), act.get("mapa_lon")
-    piezas: list = [_etiqueta_seccion("Ubicación")]
     if not lugar and lat is None:
-        piezas.append(_campo("Sitio", "Sin ubicación registrada"))
-        return piezas
+        return None, ""
     ruta, nombre = obtener_mapa(con, lugar, lat, lon)
     if ruta and ruta.exists():
         try:
-            img = Image(str(ruta), width=_MAPA_ANCHO, height=_MAPA_ALTO)
-            img.hAlign = "CENTER"
-            piezas += [img, Paragraph(_esc(nombre), E["cap_mapa"])]
-            return piezas
+            img = Image(str(ruta), width=ancho, height=ancho * 360 / 640)
+            return img, nombre
         except Exception:
-            pass  # imagen ilegible: cae al respaldo de texto
-    piezas.append(_campo("Sitio", nombre or "Sin ubicación registrada"))
-    return piezas
+            pass  # imagen ilegible: sin mapa, la ubicación ya va en texto en la Ficha POA
+    return None, nombre
+
+
+def _objetivo_y_mapa(con, act: dict) -> list:
+    """Objetivo y, si hay mapa, el mapa a su lado para que la ficha quepa en una hoja.
+    Sin mapa, el objetivo ocupa todo el ancho (la ubicación en texto ya va en la Ficha
+    POA, así que no se repite)."""
+    obj = Paragraph(_esc(act.get("objetivo")) or "—", E["cuerpo"])
+    img, nombre = _mapa_flowable(con, act, _MAPA_LADO_ANCHO)
+    if img is None:
+        return [_etiqueta_seccion("Objetivo"), obj]
+
+    izq = [_etiqueta_seccion("Objetivo"), obj]
+    der = [_etiqueta_seccion("Ubicación"), img, Paragraph(_esc(nombre), E["cap_mapa"])]
+    t = Table([[izq, der]], colWidths=[108 * mm, 66 * mm])
+    t.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (0, 0), 0), ("RIGHTPADDING", (0, 0), (0, 0), 6),
+        ("LEFTPADDING", (1, 0), (1, 0), 0), ("RIGHTPADDING", (1, 0), (1, 0), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    return [t]
 
 
 def _cuadricula_fotos(pares: list) -> list:
@@ -439,10 +512,28 @@ def _mas_extenso(partes: list) -> dict:
     return max(partes, key=lambda p: len((p.get("resumen") or "").strip()))
 
 
+def _fotos_para_evidencia(partes: list, act: dict,
+                          fotos_azar: int | None) -> list:
+    """Las (foto, autor) que van en la hoja de evidencia.
+
+    - Ficha individual (`fotos_azar` None): TODAS las fotos de `partes`, en su orden
+      (destacadas primero). Cada quien se queda con sus propias fotos.
+    - Informe colectivo (`fotos_azar` = N): N fotos elegidas al azar del total que
+      compartieron todos los participantes. La selección es estable por actividad
+      (misma semilla), para que regenerar el informe muestre siempre las mismas.
+    """
+    todas = [(f, parte["nombre"]) for parte in partes
+             for f in _fotos_ordenadas(parte["fotos"])]
+    if fotos_azar and len(todas) > fotos_azar:
+        rng = random.Random(act.get("id") or 0)
+        todas = rng.sample(todas, fotos_azar)
+    return todas
+
+
 def _hoja_actividad(con, act: dict, con_fotos: bool = True,
                     solo_usuario: int | None = None, resumen_extenso: bool = False,
-                    vista_previa: bool = False) -> list:
-    """Una actividad: hoja de datos (título, ubicación, objetivo, resumen y firmas) y,
+                    vista_previa: bool = False, fotos_azar: int | None = None) -> list:
+    """Una actividad: hoja de datos (Ficha POA, cifras, objetivo, resumen y firmas) y,
     en seguida, una hoja aparte con las fotografías (también firmada). Tras la hoja de
     fotos, el documento continúa con la siguiente actividad en una hoja nueva.
 
@@ -450,6 +541,9 @@ def _hoja_actividad(con, act: dict, con_fotos: bool = True,
       firma (además de la del responsable). Es lo que descarga cada quien.
     - `resumen_extenso`: compilado; se muestra un único resumen, el más largo, pero se
       conserva la evidencia y las firmas de todos.
+    - `fotos_azar`: en el compilado colectivo, cuántas fotos mostrar elegidas al azar
+      del total que compartieron todos. Si no se pasa, el colectivo usa
+      `FOTOS_AZAR_COLECTIVO`; la ficha individual siempre lleva todas sus fotos.
     """
     partes = act.get("participaciones") or []
     if solo_usuario is not None:
@@ -460,15 +554,21 @@ def _hoja_actividad(con, act: dict, con_fotos: bool = True,
     else:
         resumen = partes                       # todos
 
+    # El informe colectivo (compilado, no de una sola persona) muestra fotos al azar;
+    # la ficha individual conserva todas las del dueño.
+    if fotos_azar is None and resumen_extenso and solo_usuario is None:
+        fotos_azar = FOTOS_AZAR_COLECTIVO
+
     piezas: list = [
         Paragraph(_esc(act["titulo"]), E["titulo_act"]),
         Paragraph(_esc(f'{act.get("eje", "")}  ·  {_periodo(act["anio"], act.get("trimestre", 0))}'),
                   E["meta_act"]),
     ]
-    piezas += _bloque_ubicacion(con, act)
-
-    piezas.append(_etiqueta_seccion("Objetivo"))
-    piezas.append(Paragraph(_esc(act.get("objetivo")) or "—", E["cuerpo"]))
+    # Toda la información que se genera en la plataforma cabe en la hoja de datos:
+    # Ficha POA (sección 2), cifras (sección 3), objetivo, ubicación y resumen.
+    piezas += _ficha_poa(act)
+    piezas += _bloque_cifras(act)
+    piezas += _objetivo_y_mapa(con, act)
 
     piezas.append(_etiqueta_seccion("Resumen"))
     if resumen:
@@ -488,8 +588,7 @@ def _hoja_actividad(con, act: dict, con_fotos: bool = True,
     # La evidencia fotográfica va en su propia hoja, después de los datos.
     fotos_lista: list = []
     if con_fotos:
-        todas = [(f, parte["nombre"]) for parte in partes
-                 for f in _fotos_ordenadas(parte["fotos"])]
+        todas = _fotos_para_evidencia(partes, act, fotos_azar)
         if todas:
             fotos_lista.append(_etiqueta_seccion("Evidencia fotográfica"))
             for i in range(0, len(todas), 4):
