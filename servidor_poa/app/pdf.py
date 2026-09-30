@@ -355,7 +355,9 @@ def _tira_fotos(fotos_lista: list[dict], autor: str = "") -> list:
     return [t]
 
 
-def _firmas() -> list:
+def _bloque_firmas_generico() -> Table:
+    """Las firmas del consolidado (Elaboró / Revisó / Vo. Bo.), como un solo flowable,
+    para anclarlas al pie de la hoja igual que en las fichas."""
     encabezados = ["Elaboró", "Revisó", "Vo. Bo. Coordinación"]
     t = Table([
         [Paragraph(f"<b>{h}</b>", E["pie_foto"]) for h in encabezados],
@@ -364,7 +366,7 @@ def _firmas() -> list:
         [Paragraph("Nombre y firma", E["pie_foto"]) for _ in encabezados],
     ], colWidths=[58 * mm] * 3, rowHeights=[6 * mm, 12 * mm, 5 * mm, 5 * mm])
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
-    return [Spacer(1, 10 * mm), t]
+    return t
 
 
 def _imagen_firma(archivo: str, ancho_max: float, alto_max: float):
@@ -777,7 +779,6 @@ def _portada(anio: int, trimestre: int, agrupar: str, tot: dict, grupos: list[di
         t,
         Spacer(1, 4),
         Paragraph(nota, E["pie_foto"]),
-        *_firmas(),
     ]
 
 
@@ -790,8 +791,10 @@ def consolidado(con: sqlite3.Connection, grupos: list[dict], anio: int, trimestr
     from .consolidado import totales
     tot = totales(grupos)
 
-    buffer = io.BytesIO()
-    doc = _documento(buffer)
-    doc.build(_portada(anio, trimestre, agrupar, tot, grupos),
-              onFirstPage=_membrete, onLaterPages=_membrete)
-    return buffer.getvalue()
+    # Las firmas de la coordinación van ancladas al pie de la hoja, como en las fichas.
+    # El ancla va al final para que, si el resumen ocupara más de una hoja, las firmas
+    # caigan en la última.
+    alto = _bloque_firmas_generico().wrap(_PIE_ANCHO, 200 * mm)[1]
+    piezas = _portada(anio, trimestre, agrupar, tot, grupos)
+    piezas.append(_PieFirmas(_bloque_firmas_generico))
+    return _construir(piezas, [alto], _membrete)
