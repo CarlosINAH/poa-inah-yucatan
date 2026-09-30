@@ -285,10 +285,13 @@ def cuenta_pendientes(con: sqlite3.Connection, uid: int) -> int:
 
 def buscar(con: sqlite3.Connection, anio: int, texto: str = "", zona: str = "",
            trimestre: int = 0, solo_de: int | None = None,
-           estado_de: str | None = None) -> list[dict]:
-    """La lista del tablero. `solo_de` limita a las actividades de una persona;
-    `estado_de` exige que su participación tenga ese estado (p. ej. 'confirmada' para
-    «mis actividades», 'pendiente' para «actividades compartidas»)."""
+           relacion: str | None = None) -> list[dict]:
+    """La lista del tablero. `solo_de` limita a las actividades de una persona y
+    `relacion` dice de qué tipo:
+      - 'mias': las que esa persona registró o a las que se sumó ella misma (confirmadas).
+      - 'compartidas': aquellas donde OTRA persona la etiquetó (no rechazadas), que es
+        donde confirma si participó.
+    Sin `relacion`, cualquier actividad en la que aparezca (para conteos internos)."""
     condiciones, params = ["a.anio = ?", "a.eliminada_en = ''"], [anio]
     if texto.strip():
         condiciones.append("(a.titulo_norm LIKE ? OR c.actividad_poa LIKE ?)")
@@ -303,9 +306,15 @@ def buscar(con: sqlite3.Connection, anio: int, texto: str = "", zona: str = "",
         sub = ("EXISTS (SELECT 1 FROM participaciones p "
                "WHERE p.actividad_id = a.id AND p.usuario_id = ?")
         params.append(solo_de)
-        if estado_de:
-            sub += " AND p.estado = ?"
-            params.append(estado_de)
+        if relacion == "mias":
+            # Registradas por ella o auto-sumadas (los datos previos, sin etiquetador
+            # conocido, también son suyas). Sólo las confirmadas.
+            sub += (" AND p.estado = 'confirmada' "
+                    "AND (p.agregada_por IS NULL OR p.agregada_por = p.usuario_id)")
+        elif relacion == "compartidas":
+            # Donde otra persona la metió y no la ha rechazado.
+            sub += (" AND p.estado <> 'rechazada' "
+                    "AND p.agregada_por IS NOT NULL AND p.agregada_por <> p.usuario_id")
         condiciones.append(sub + ")")
 
     filas = con.execute(
@@ -329,26 +338,30 @@ def buscar(con: sqlite3.Connection, anio: int, texto: str = "", zona: str = "",
 
 
 def cuenta_compartidas(con: sqlite3.Connection, uid: int, anio: int) -> int:
-    """Cuántas actividades tienen a esta persona etiquetada y pendiente de confirmar."""
+    """Cuántas actividades tienen a esta persona etiquetada y PENDIENTE de confirmar
+    (es lo que se muestra como aviso en la pestaña «Actividades compartidas»)."""
     return con.execute(
         """SELECT COUNT(*) c FROM participaciones p
              JOIN actividades a ON a.id = p.actividad_id
             WHERE p.usuario_id = ? AND p.estado = 'pendiente'
+              AND p.agregada_por IS NOT NULL AND p.agregada_por <> p.usuario_id
               AND a.anio = ? AND a.eliminada_en = ''""", (uid, anio)).fetchone()["c"]
 
 
-def mis_pendientes_confirmar(con: sqlite3.Connection, uid: int,
-                             anio: int) -> dict[int, dict]:
-    """Por actividad, la participación pendiente de esta persona y quién la etiquetó.
-    Sirve para poner los botones «Sí participé / No participé» en cada renglón."""
+def mis_compartidas_info(con: sqlite3.Connection, uid: int,
+                         anio: int) -> dict[int, dict]:
+    """Por actividad compartida (otra persona etiquetó a ésta), su participación, quién
+    la etiquetó y su estado. Alimenta los botones «Sí participé / No participé»."""
     filas = con.execute(
-        """SELECT p.id AS parte_id, p.actividad_id, ag.nombre AS por
+        """SELECT p.id AS parte_id, p.actividad_id, p.estado, ag.nombre AS por
              FROM participaciones p
              JOIN actividades a ON a.id = p.actividad_id
         LEFT JOIN usuarios ag ON ag.id = p.agregada_por
-            WHERE p.usuario_id = ? AND p.estado = 'pendiente'
+            WHERE p.usuario_id = ? AND p.estado <> 'rechazada'
+              AND p.agregada_por IS NOT NULL AND p.agregada_por <> p.usuario_id
               AND a.anio = ? AND a.eliminada_en = ''""", (uid, anio)).fetchall()
-    return {f["actividad_id"]: {"parte_id": f["parte_id"], "por": f["por"]} for f in filas}
+    return {f["actividad_id"]: {"parte_id": f["parte_id"], "por": f["por"],
+                                "estado": f["estado"]} for f in filas}
 
 
 def actividades_de(con: sqlite3.Connection, uid: int, anio: int,

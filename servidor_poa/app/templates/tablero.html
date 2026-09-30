@@ -121,12 +121,16 @@
           {% if ver == 'compartidas' %}
           <td style="text-align:center;white-space:nowrap">
             {% if a.mi_parte_id %}
+            {% if a.mi_estado == 'confirmada' %}
+            <span class="tag" style="background:#e4f5e8;color:#1c7a3f">✔ Confirmada</span>
+            {% else %}
             <form method="post" action="/participaciones/{{ a.mi_parte_id }}/confirmar" style="display:inline">
               <input type="hidden" name="volver" value="/tablero?ver=compartidas">
               <button class="btn sm primary" type="submit">Sí participé</button>
             </form>
+            {% endif %}
             <form method="post" action="/participaciones/{{ a.mi_parte_id }}/rechazar" style="display:inline"
-                  onsubmit="return confirm('¿Confirmas que NO participaste en «{{ a.titulo }}»? Sólo la coordinación podría volver a etiquetarte.')">
+                  onsubmit="return confirm('¿Confirmas que NO participaste en «{{ a.titulo }}»? Se quitará de tus actividades compartidas.')">
               <input type="hidden" name="volver" value="/tablero?ver=compartidas">
               <button class="btn sm" type="submit">No participé</button>
             </form>
