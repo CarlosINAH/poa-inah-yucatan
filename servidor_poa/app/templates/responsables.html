@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block titulo %}Responsables{% endblock %}
+{% block encabezado %}Revisión de responsables{% endblock %}
+{% block subtitulo %}Confirma o corrige con qué responsable de proyecto queda enlazada cada actividad.{% endblock %}
+
+{% block acciones %}
+<form method="get" action="/responsables" class="row-controls" style="gap:8px">
+  <label class="fld" style="min-width:120px">
+    <span>Año</span>
+    <select name="anio" onchange="this.form.submit()">
+      {% for a in anios %}<option value="{{ a }}" {% if a == anio %}selected{% endif %}>{{ a }}</option>{% endfor %}
+    </select>
+  </label>
+</form>
+{% endblock %}
+
+{% block contenido %}
+<section class="card">
+  <div class="section-head">
+    <div>
+      <h2>Actividades de {{ anio }}</h2>
+      <p class="section-desc">El responsable se toma del Excel al importar y a veces queda mal
+        enlazado. Revisa cada actividad y, si no coincide, elige el correcto y guarda.
+        {% if sin_responsable %}<b>{{ sin_responsable }}</b> sin responsable aparecen primero.{% endif %}</p>
+    </div>
+  </div>
+
+  {% if filas %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Actividad</th><th>Periodo</th><th>Registró</th><th>Responsable actual</th><th>Cambiar a</th></tr>
+      </thead>
+      <tbody>
+        {% for a in filas %}
+        <tr>
+          <td><a href="/actividades/{{ a.id }}" target="_blank">{{ a.titulo }}</a></td>
+          <td>{{ trimestres[a.trimestre] if a.trimestre else 'Anual' }} {{ a.anio }}</td>
+          <td>{{ a.creador_nombre }}</td>
+          <td>
+            {% if a.responsable_nombre %}{{ a.responsable_nombre }}
+            {% else %}<span class="tag" style="background:#fff3d6;color:#8a6100">Sin responsable</span>{% endif %}
+          </td>
+          <td>
+            <form method="post" action="/autorizaciones/asignar-responsable"
+                  style="display:flex;gap:6px;align-items:center">
+              <input type="hidden" name="act_id" value="{{ a.id }}">
+              <input type="hidden" name="volver" value="/responsables?anio={{ anio }}">
+              <select name="responsable_id" required aria-label="Responsable para {{ a.titulo }}">
+                <option value="" selected disabled>Elegir…</option>
+                {% for r in responsables %}
+                <option value="{{ r.id }}" {% if r.id == a.responsable_id %}selected{% endif %}>{{ r.nombre }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn sm" type="submit">Guardar</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">No hay actividades registradas en {{ anio }}.</div>
+  {% endif %}
+</section>
+{% endblock %}

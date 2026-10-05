@@ -361,6 +361,18 @@ def sin_responsable(con: sqlite3.Connection, anio: int | None = None) -> list[di
     return [dict(f) for f in filas]
 
 
+def revision_responsables(con: sqlite3.Connection, anio: int) -> list[dict]:
+    """Todas las actividades del año con el responsable que tienen enlazado ahora, para que
+    la coordinación revise una por una y corrija las que quedaron con el equivocado. Se
+    ordena por responsable actual (las sin responsable primero) para detectar de un vistazo
+    las que se agruparon mal bajo una sola persona."""
+    filas = con.execute(
+        _SELECT_ACTIVIDAD + " WHERE a.anio = ? AND a.eliminada_en = ''"
+        " ORDER BY (a.responsable_id IS NULL) DESC, r.nombre COLLATE NOCASE, a.titulo",
+        (anio,)).fetchall()
+    return [dict(f) for f in filas]
+
+
 def asignar_responsable(con: sqlite3.Connection, act_id: int, resp_id: int) -> bool:
     """Enlaza una actividad con su responsable de proyecto. Sólo admite a quien está
     marcado como responsable y activo; devuelve False si el destino no califica."""
