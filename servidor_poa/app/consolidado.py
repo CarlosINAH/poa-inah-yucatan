@@ -361,15 +361,26 @@ def sin_responsable(con: sqlite3.Connection, anio: int | None = None) -> list[di
     return [dict(f) for f in filas]
 
 
-def revision_responsables(con: sqlite3.Connection, anio: int) -> list[dict]:
+def revision_responsables(con: sqlite3.Connection, anio: int,
+                          filtro_resp: int | None = None) -> list[dict]:
     """Todas las actividades del año con el responsable que tienen enlazado ahora, para que
     la coordinación revise una por una y corrija las que quedaron con el equivocado. Se
     ordena por responsable actual (las sin responsable primero) para detectar de un vistazo
-    las que se agruparon mal bajo una sola persona."""
+    las que se agruparon mal bajo una sola persona.
+
+    `filtro_resp` separa por responsable: None = todas, 0 = sólo las sin responsable,
+    un id = sólo las de esa persona."""
+    cond = ["a.anio = ?", "a.eliminada_en = ''"]
+    params: list = [anio]
+    if filtro_resp == 0:
+        cond.append("a.responsable_id IS NULL")
+    elif filtro_resp:
+        cond.append("a.responsable_id = ?")
+        params.append(filtro_resp)
     filas = con.execute(
-        _SELECT_ACTIVIDAD + " WHERE a.anio = ? AND a.eliminada_en = ''"
-        " ORDER BY (a.responsable_id IS NULL) DESC, r.nombre COLLATE NOCASE, a.titulo",
-        (anio,)).fetchall()
+        _SELECT_ACTIVIDAD + " WHERE " + " AND ".join(cond)
+        + " ORDER BY (a.responsable_id IS NULL) DESC, r.nombre COLLATE NOCASE, a.titulo",
+        params).fetchall()
     return [dict(f) for f in filas]
 
 

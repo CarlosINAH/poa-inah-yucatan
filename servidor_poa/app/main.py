@@ -905,16 +905,18 @@ async def asignar_responsable(request: Request, u: sqlite3.Row = Depends(exigir_
 
 
 @app.get("/responsables", response_class=HTMLResponse)
-def revision_responsables(request: Request, anio: int | None = None,
+def revision_responsables(request: Request, anio: int | None = None, resp: int = -1,
                           u: sqlite3.Row = Depends(exigir_admin),
                           con: sqlite3.Connection = Depends(bd)):
     """Revisión manual del enlace actividad ↔ responsable: la coordinación ve todas las
-    actividades del año con su responsable actual y corrige las que quedaron mal."""
+    actividades del año con su responsable actual y corrige las que quedaron mal. `resp`
+    separa por responsable: -1 todas, 0 sin responsable, un id esa persona."""
     anio = anio or consolidado.anio_por_defecto(con)
-    filas = consolidado.revision_responsables(con, anio)
-    sin = sum(1 for f in filas if not f["responsable_id"])
+    filtro = None if resp < 0 else resp
+    filas = consolidado.revision_responsables(con, anio, filtro)
+    sin = len(consolidado.sin_responsable(con, anio))
     return vista(request, "responsables.html", {
-        "u": u, "anio": anio, "filas": filas, "sin_responsable": sin,
+        "u": u, "anio": anio, "resp": resp, "filas": filas, "sin_responsable": sin,
         "responsables": consolidado.responsables(con),
         "anios": consolidado.anios_disponibles(con),
         "trimestres": TRIMESTRES,
