@@ -345,6 +345,35 @@ def pendientes_por_responsable(con: sqlite3.Connection,
     return [dict(f) for f in filas]
 
 
+def sin_responsable(con: sqlite3.Connection, anio: int | None = None) -> list[dict]:
+    """Actividades que quedaron sin responsable de proyecto enlazado. Pasa cuando el
+    importador no reconoció el nombre del Excel o cuando se registró una sin elegirlo:
+    nadie las ve en «A mi cargo» ni en Autorizaciones, así que a su responsable nunca se
+    le pide firmar. Las junta para que la coordinación las enlace."""
+    cond = ["a.responsable_id IS NULL", "a.eliminada_en = ''"]
+    params: list = []
+    if anio:
+        cond.append("a.anio = ?")
+        params.append(anio)
+    filas = con.execute(
+        _SELECT_ACTIVIDAD + " WHERE " + " AND ".join(cond)
+        + " ORDER BY a.anio DESC, cr.nombre, a.titulo", params).fetchall()
+    return [dict(f) for f in filas]
+
+
+def asignar_responsable(con: sqlite3.Connection, act_id: int, resp_id: int) -> bool:
+    """Enlaza una actividad con su responsable de proyecto. Sólo admite a quien está
+    marcado como responsable y activo; devuelve False si el destino no califica."""
+    ok = con.execute(
+        "SELECT 1 FROM usuarios WHERE id = ? AND es_responsable = 1 AND activo = 1",
+        (resp_id,)).fetchone()
+    if not ok:
+        return False
+    con.execute("UPDATE actividades SET responsable_id = ? WHERE id = ? AND eliminada_en = ''",
+                (resp_id, act_id))
+    return True
+
+
 def buscar(con: sqlite3.Connection, anio: int, texto: str = "", zona: str = "",
            trimestre: int = 0, solo_de: int | None = None,
            relacion: str | None = None) -> list[dict]:

@@ -41,6 +41,48 @@
   <div class="empty">Ningún responsable tiene firmas pendientes. Todo al día.</div>
   {% endif %}
 </section>
+
+<section class="card" style="margin-bottom:16px">
+  <div class="section-head">
+    <div>
+      <h2>Actividades sin responsable enlazado</h2>
+      <p class="section-desc">No tienen un responsable de proyecto asignado, así que no
+        aparecen en su panel ni se les puede pedir firma. Pasa cuando al importar no se
+        reconoció el nombre. Enlázalas aquí.</p>
+    </div>
+  </div>
+  {% if huerfanas %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Actividad</th><th>Periodo</th><th>Registró</th><th>Responsable</th></tr></thead>
+      <tbody>
+        {% for a in huerfanas %}
+        <tr>
+          <td><a href="/actividades/{{ a.id }}" target="_blank">{{ a.titulo }}</a></td>
+          <td>{{ trimestres[a.trimestre] if a.trimestre else 'Anual' }} {{ a.anio }}</td>
+          <td>{{ a.creador_nombre }}</td>
+          <td>
+            <form method="post" action="/autorizaciones/asignar-responsable"
+                  style="display:flex;gap:6px;align-items:center">
+              <input type="hidden" name="act_id" value="{{ a.id }}">
+              <select name="responsable_id" required aria-label="Responsable para {{ a.titulo }}">
+                <option value="" selected disabled>Elegir…</option>
+                {% for r in responsables %}
+                <option value="{{ r.id }}">{{ r.nombre }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn sm" type="submit">Enlazar</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">Todas las actividades están enlazadas con su responsable.</div>
+  {% endif %}
+</section>
 {% endif %}
 
 {% if not grupos %}
