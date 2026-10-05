@@ -1385,6 +1385,33 @@ def eliminar_usuario(request: Request, uid: int, u: sqlite3.Row = Depends(exigir
     return RedirectResponse("/admin/usuarios", status_code=303)
 
 
+@app.post("/admin/usuarios/{uid}/firma")
+async def admin_cargar_firma(request: Request, uid: int, archivo: UploadFile,
+                             u: sqlite3.Row = Depends(exigir_admin),
+                             con: sqlite3.Connection = Depends(bd)):
+    """La coordinación carga la firma de una persona a partir de una imagen (escaneo o
+    foto), para quien no puede firmar en pantalla. Se limpia el fondo y se guarda igual que
+    una firma dibujada, así que sirve para autorizar y se estampa en los PDF."""
+    objetivo = con.execute("SELECT id, nombre, firma FROM usuarios WHERE id = ?",
+                           (uid,)).fetchone()
+    if objetivo is None:
+        raise HTTPException(404, "Esa persona no existe.")
+    datos = await archivo.read()
+    try:
+        nombre_archivo = firmas_mod.procesar_subida(datos)
+    except firmas_mod.FirmaInvalida as exc:
+        avisar(request, str(exc))
+        return RedirectResponse("/admin/usuarios", status_code=303)
+    anterior = objetivo["firma"]
+    con.execute("UPDATE usuarios SET firma = ? WHERE id = ?", (nombre_archivo, uid))
+    con.commit()
+    if anterior:
+        firmas_mod.eliminar(anterior)
+    avisar(request, f"Se cargó la firma de {objetivo['nombre']}. Ya puede usarse para "
+                    "autorizar y aparecerá en los PDF.")
+    return RedirectResponse("/admin/usuarios", status_code=303)
+
+
 # ------------------------------------------------------- importar históricos (Excel)
 
 @app.get("/admin/importar", response_class=HTMLResponse)
