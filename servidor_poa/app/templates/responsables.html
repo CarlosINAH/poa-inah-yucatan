@@ -5,10 +5,20 @@
 
 {% block acciones %}
 <form method="get" action="/responsables" class="row-controls" style="gap:8px">
-  <label class="fld" style="min-width:120px">
+  <label class="fld" style="min-width:110px">
     <span>Año</span>
     <select name="anio" onchange="this.form.submit()">
       {% for a in anios %}<option value="{{ a }}" {% if a == anio %}selected{% endif %}>{{ a }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="fld" style="min-width:200px">
+    <span>Responsable</span>
+    <select name="resp" onchange="this.form.submit()">
+      <option value="-1" {% if resp == -1 %}selected{% endif %}>Todos</option>
+      <option value="0" {% if resp == 0 %}selected{% endif %}>Sin responsable</option>
+      {% for r in responsables %}
+      <option value="{{ r.id }}" {% if resp == r.id %}selected{% endif %}>{{ r.nombre }}</option>
+      {% endfor %}
     </select>
   </label>
 </form>
@@ -45,7 +55,7 @@
             <form method="post" action="/autorizaciones/asignar-responsable"
                   style="display:flex;gap:6px;align-items:center">
               <input type="hidden" name="act_id" value="{{ a.id }}">
-              <input type="hidden" name="volver" value="/responsables?anio={{ anio }}">
+              <input type="hidden" name="volver" value="/responsables?anio={{ anio }}&resp={{ resp }}">
               <select name="responsable_id" required aria-label="Responsable para {{ a.titulo }}">
                 <option value="" selected disabled>Elegir…</option>
                 {% for r in responsables %}
@@ -61,7 +71,11 @@
     </table>
   </div>
   {% else %}
-  <div class="empty">No hay actividades registradas en {{ anio }}.</div>
+  <div class="empty">
+    {% if resp == 0 %}No hay actividades sin responsable en {{ anio }}.
+    {% elif resp and resp > 0 %}Esta persona no tiene actividades a su cargo en {{ anio }}.
+    {% else %}No hay actividades registradas en {{ anio }}.{% endif %}
+  </div>
   {% endif %}
 </section>
 {% endblock %}
