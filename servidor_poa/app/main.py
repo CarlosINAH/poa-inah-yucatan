@@ -16,7 +16,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import (auth, consolidado, firmas as firmas_mod, fotos as fotos_mod,
-               importador, lugares, mapas, pdf)
+               lugares, mapas, pdf)
 from .db import (FIRMAS_DIR, FOTOS_DIR, PROGRAMAS_NACIONALES, TRIMESTRES, ahora,
                  conectar, crear_esquema, norm)
 
@@ -337,11 +337,12 @@ def tablero(request: Request, anio: int | None = None, trimestre: int = 0, q: st
     """
     anio = anio or consolidado.anio_por_defecto(con)
     puede_todas = bool(u["es_admin"] or u["es_responsable"])
-    ver = ver if ver in ("mias", "compartidas", "todas", "empleado", "a_cargo") else "mias"
+    ver = ver if ver in ("mias", "compartidas", "todas", "empleado",
+                         "a_cargo", "autorizadas") else "mias"
     if ver == "todas" and not puede_todas:
         ver = "mias"
-    # «A mi cargo» (actividades donde soy el responsable de proyecto) es del responsable.
-    if ver == "a_cargo" and not u["es_responsable"]:
+    # «A mi cargo» y «Autorizadas» (lo que es/firmó como responsable) son del responsable.
+    if ver in ("a_cargo", "autorizadas") and not u["es_responsable"]:
         ver = "mias"
     # «Por empleado» (ver el perfil de cada quien y descargar su PDF) es de la coordinación:
     # ve los resúmenes de todas las actividades de la persona.
@@ -378,6 +379,9 @@ def tablero(request: Request, anio: int | None = None, trimestre: int = 0, q: st
     elif ver == "a_cargo":
         filas = consolidado.buscar(con, anio=anio, texto=q, zona=zona, trimestre=trimestre,
                                    solo_de=u["id"], relacion="a_cargo")
+    elif ver == "autorizadas":
+        filas = consolidado.buscar(con, anio=anio, texto=q, zona=zona, trimestre=trimestre,
+                                   solo_de=u["id"], relacion="autorizadas")
     elif ver == "mias":
         filas = consolidado.buscar(con, anio=anio, texto=q, zona=zona, trimestre=trimestre,
                                    solo_de=u["id"], relacion="mias")
@@ -1434,46 +1438,5 @@ async def admin_cargar_firma(request: Request, uid: int, archivo: UploadFile,
     return RedirectResponse("/admin/usuarios", status_code=303)
 
 
-# ------------------------------------------------------- importar históricos (Excel)
-
-@app.get("/admin/importar", response_class=HTMLResponse)
-def importar_form(request: Request, u: sqlite3.Row = Depends(exigir_admin)):
-    return vista(request, "importar.html", {"u": u, "resultado": None})
-
-
-@app.post("/admin/importar", response_class=HTMLResponse)
-async def importar_post(request: Request, archivo: UploadFile,
-                        anio: str = Form(""),
-                        u: sqlite3.Row = Depends(exigir_admin),
-                        con: sqlite3.Connection = Depends(bd)):
-    def pantalla(resultado):
-        return vista(request, "importar.html", {"u": u, "resultado": resultado})
-
-    nombre = archivo.filename or ""
-    if not nombre.lower().endswith(".xlsx"):
-        avisar(request, "El archivo debe ser un Excel .xlsx (el mismo formato del POA trimestral).")
-        return RedirectResponse("/admin/importar", status_code=303)
-
-    # Año: lo que escriba la coordinación manda; si lo deja vacío, se adivina del nombre.
-    anio_texto = (anio or "").strip()
-    if anio_texto:
-        try:
-            anio_final = int(anio_texto)
-        except ValueError:
-            avisar(request, "El año debe ser un número, por ejemplo 2024.")
-            return RedirectResponse("/admin/importar", status_code=303)
-    else:
-        anio_final = importador.detectar_anio(nombre) or 0
-    if not (2000 <= anio_final <= 2100):
-        avisar(request, "No pude determinar el año. Escríbelo en el campo (por ejemplo 2024).")
-        return RedirectResponse("/admin/importar", status_code=303)
-
-    contenido = await archivo.read()
-    if len(contenido) > importador.MAX_BYTES_ARCHIVO:
-        resultado = importador.Resultado(
-            anio=anio_final,
-            error=f"El archivo pesa más de {importador.MAX_BYTES_ARCHIVO // (1024 * 1024)} MB.")
-        return pantalla(resultado)
-
-    resultado = importador.importar(con, contenido, anio_final)
-    return pantalla(resultado)
+# La importación de históricos (Excel) se retiró de la interfaz por el momento. El motor
+# sigue en importador.py y el CLI importar_excel.py para cuando se quiera reactivar.

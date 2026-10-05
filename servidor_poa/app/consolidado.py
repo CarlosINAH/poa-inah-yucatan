@@ -442,6 +442,10 @@ def buscar(con: sqlite3.Connection, anio: int, texto: str = "", zona: str = "",
             # sin importar si ya se le pidió la firma (el panel del responsable).
             condiciones.append("a.responsable_id = ?")
             params.append(solo_de)
+        elif relacion == "autorizadas":
+            # Historial de lo que ese responsable ya firmó/autorizó (con sus participantes).
+            condiciones.append("a.responsable_id = ? AND a.autorizada_en != ''")
+            params.append(solo_de)
         else:
             condiciones.append("EXISTS (SELECT 1 FROM participaciones p "
                                "WHERE p.actividad_id = a.id AND p.usuario_id = ?)")
