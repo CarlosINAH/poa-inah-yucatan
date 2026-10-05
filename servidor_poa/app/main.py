@@ -900,11 +900,32 @@ def autorizaciones(request: Request, u: sqlite3.Row = Depends(exigir_sesion),
     Para la coordinación, además, el resumen de qué responsables faltan por firmar."""
     grupos = consolidado.pendientes_para(con, u["id"])
     por_responsable = consolidado.pendientes_por_responsable(con) if u["es_admin"] else []
+    huerfanas = consolidado.sin_responsable(con) if u["es_admin"] else []
     return vista(request, "autorizaciones.html", {
         "u": u, "grupos": grupos, "tengo_firma": bool(u["firma"]),
         "por_responsable": por_responsable,
+        "huerfanas": huerfanas,
+        "responsables": consolidado.responsables(con) if u["es_admin"] else [],
         "trimestres": TRIMESTRES,
     })
+
+
+@app.post("/autorizaciones/asignar-responsable")
+async def asignar_responsable(request: Request, u: sqlite3.Row = Depends(exigir_admin),
+                              con: sqlite3.Connection = Depends(bd)):
+    """La coordinación enlaza una actividad huérfana con su responsable de proyecto."""
+    form = await request.form()
+    try:
+        act_id = int(form.get("act_id") or 0)
+        resp_id = int(form.get("responsable_id") or 0)
+    except (TypeError, ValueError):
+        act_id = resp_id = 0
+    if act_id and resp_id and consolidado.asignar_responsable(con, act_id, resp_id):
+        con.commit()
+        avisar(request, "Actividad enlazada con su responsable.")
+    else:
+        avisar(request, "No se pudo enlazar: elige un responsable válido.")
+    return RedirectResponse("/autorizaciones", status_code=303)
 
 
 @app.post("/autorizaciones/autorizar")
