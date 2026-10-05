@@ -913,19 +913,37 @@ def autorizaciones(request: Request, u: sqlite3.Row = Depends(exigir_sesion),
 @app.post("/autorizaciones/asignar-responsable")
 async def asignar_responsable(request: Request, u: sqlite3.Row = Depends(exigir_admin),
                               con: sqlite3.Connection = Depends(bd)):
-    """La coordinación enlaza una actividad huérfana con su responsable de proyecto."""
+    """La coordinación enlaza o corrige el responsable de proyecto de una actividad."""
     form = await request.form()
     try:
         act_id = int(form.get("act_id") or 0)
         resp_id = int(form.get("responsable_id") or 0)
     except (TypeError, ValueError):
         act_id = resp_id = 0
+    volver = _destino_seguro(str(form.get("volver") or ""), "/autorizaciones")
     if act_id and resp_id and consolidado.asignar_responsable(con, act_id, resp_id):
         con.commit()
-        avisar(request, "Actividad enlazada con su responsable.")
+        avisar(request, "Responsable asignado a la actividad.")
     else:
-        avisar(request, "No se pudo enlazar: elige un responsable válido.")
-    return RedirectResponse("/autorizaciones", status_code=303)
+        avisar(request, "No se pudo asignar: elige un responsable válido.")
+    return RedirectResponse(volver, status_code=303)
+
+
+@app.get("/responsables", response_class=HTMLResponse)
+def revision_responsables(request: Request, anio: int | None = None,
+                          u: sqlite3.Row = Depends(exigir_admin),
+                          con: sqlite3.Connection = Depends(bd)):
+    """Revisión manual del enlace actividad ↔ responsable: la coordinación ve todas las
+    actividades del año con su responsable actual y corrige las que quedaron mal."""
+    anio = anio or consolidado.anio_por_defecto(con)
+    filas = consolidado.revision_responsables(con, anio)
+    sin = sum(1 for f in filas if not f["responsable_id"])
+    return vista(request, "responsables.html", {
+        "u": u, "anio": anio, "filas": filas, "sin_responsable": sin,
+        "responsables": consolidado.responsables(con),
+        "anios": consolidado.anios_disponibles(con),
+        "trimestres": TRIMESTRES,
+    })
 
 
 @app.post("/autorizaciones/autorizar")
