@@ -385,6 +385,11 @@ def buscar(con: sqlite3.Connection, anio: int, texto: str = "", zona: str = "",
                 "EXISTS (SELECT 1 FROM participaciones p WHERE p.actividad_id = a.id "
                 "AND p.usuario_id = ? AND p.estado = 'confirmada')")
             params.append(solo_de)
+        elif relacion == "a_cargo":
+            # Todas las actividades de las que esa persona es el responsable de proyecto,
+            # sin importar si ya se le pidió la firma (el panel del responsable).
+            condiciones.append("a.responsable_id = ?")
+            params.append(solo_de)
         else:
             condiciones.append("EXISTS (SELECT 1 FROM participaciones p "
                                "WHERE p.actividad_id = a.id AND p.usuario_id = ?)")
