@@ -122,24 +122,6 @@
         </div>
         {% endif %}
 
-        {# Nota / observación de revisión (del responsable de proyecto o la coordinación). #}
-        {% if p.nota and (p.usuario_id == u.id or ver_resumenes) %}
-        <div class="toast" style="margin-top:10px">
-          <div><b>Nota de revisión:</b> {{ p.nota }}
-            {% if p.nota_por_nombre %}<span class="mini"> — {{ p.nota_por_nombre }}</span>{% endif %}</div>
-        </div>
-        {% endif %}
-        {% if ver_resumenes %}
-        <form method="post" action="/participaciones/{{ p.id }}/nota" style="margin-top:8px">
-          <label class="fld">
-            <span>Nota / observación para {{ p.nombre }} (opcional)</span>
-            <textarea name="nota" rows="2"
-              placeholder="Corrección de redacción u observación sobre su participación.">{{ p.nota }}</textarea>
-          </label>
-          <div class="actions"><button class="btn sm" type="submit">Guardar nota</button></div>
-        </form>
-        {% endif %}
-
         {% if p.fotos %}
         <div class="photo-grid" style="margin-top:12px">
           {% for f in p.fotos %}

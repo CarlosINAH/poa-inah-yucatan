@@ -118,8 +118,7 @@
   </form>
 
   {% if ver == 'empleado' and empleado and filas %}
-  {# Revisión por empleado: la coordinación ve el resumen de cada actividad de la persona
-     y puede dejarle una nota (solicitar corrección). #}
+  {# Revisión por empleado: la coordinación ve el resumen de cada actividad de la persona. #}
   <div class="stack">
     {% for a in filas %}
     <div class="rep-card" style="margin-bottom:14px">
@@ -137,19 +136,6 @@
         <span>Resumen de {{ empleado_nombre }}</span>
         <div class="mini">{{ a.emp_resumen or 'Sin resumen capturado todavía.' }}</div>
       </div>
-      {% if a.emp_nota %}
-      <div class="toast" style="margin-top:8px"><div><b>Nota actual:</b> {{ a.emp_nota }}
-        {% if a.emp_nota_por %}<span class="mini"> — {{ a.emp_nota_por }}</span>{% endif %}</div></div>
-      {% endif %}
-      {% if a.emp_parte_id %}
-      <form method="post" action="/participaciones/{{ a.emp_parte_id }}/nota" style="margin-top:8px">
-        <input type="hidden" name="volver" value="/tablero?ver=empleado&empleado={{ empleado }}&anio={{ anio }}&trimestre={{ trimestre }}">
-        <label class="fld"><span>Nota / solicitar corrección (opcional)</span>
-          <textarea name="nota" rows="2"
-            placeholder="Observación para {{ empleado_nombre }} sobre esta actividad.">{{ a.emp_nota }}</textarea></label>
-        <div class="actions"><button class="btn sm primary" type="submit">Guardar nota</button></div>
-      </form>
-      {% endif %}
     </div>
     {% endfor %}
   </div>

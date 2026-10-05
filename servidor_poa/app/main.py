@@ -356,19 +356,14 @@ def tablero(request: Request, anio: int | None = None, trimestre: int = 0, q: st
             empleado_nombre = fila["nombre"] if fila else ""
             filas = consolidado.buscar(con, anio=anio, texto=q, zona=zona, trimestre=trimestre,
                                        solo_de=empleado, relacion="participa") if fila else []
-            # Para que la coordinación revise: el resumen de esa persona en cada actividad y
-            # su nota (aquí es donde el admin ve los resúmenes y deja observaciones).
+            # Para que la coordinación revise: el resumen de esa persona en cada actividad.
             for f in filas:
                 pr = con.execute(
-                    """SELECT p.id, p.resumen, p.nota, nb.nombre AS nota_por_nombre
-                         FROM participaciones p
-                    LEFT JOIN usuarios nb ON nb.id = p.nota_por
+                    """SELECT p.id, p.resumen FROM participaciones p
                         WHERE p.actividad_id = ? AND p.usuario_id = ?
                           AND p.estado = 'confirmada'""", (f["id"], empleado)).fetchone()
                 f["emp_parte_id"] = pr["id"] if pr else None
                 f["emp_resumen"] = pr["resumen"] if pr else ""
-                f["emp_nota"] = pr["nota"] if pr else ""
-                f["emp_nota_por"] = pr["nota_por_nombre"] if pr else None
         else:
             filas = []
     elif ver == "compartidas":
@@ -709,29 +704,9 @@ def rechazar_participacion(request: Request, parte_id: int, volver: str = Form("
 
 def _es_revisor(u: sqlite3.Row, act) -> bool:
     """Quién revisa una actividad: la coordinación o el responsable de proyecto de ESA
-    actividad. Son los que ven los resúmenes de todos y pueden dejar notas."""
+    actividad. Son los que ven los resúmenes de todos."""
     resp = act["responsable_id"] if not isinstance(act, dict) else act.get("responsable_id")
     return bool(u["es_admin"] or (resp and resp == u["id"]))
-
-
-@app.post("/participaciones/{parte_id}/nota")
-def guardar_nota(request: Request, parte_id: int, nota: str = Form(""),
-                 volver: str = Form(""), u: sqlite3.Row = Depends(exigir_sesion),
-                 con: sqlite3.Connection = Depends(bd)):
-    """El responsable de proyecto o la coordinación deja una nota al empleado sobre su
-    resumen. El empleado la ve en su participación."""
-    parte = consolidado.participacion(con, parte_id)
-    if parte is None:
-        raise HTTPException(404, "Esa participación no existe.")
-    act = consolidado.actividad(con, parte["actividad_id"])
-    if not _es_revisor(u, act):
-        raise HTTPException(403, "Sólo la coordinación o el responsable de proyecto de la "
-                                 "actividad puede dejar notas.")
-    consolidado.guardar_nota(con, parte_id, nota, u["id"])
-    con.commit()
-    avisar(request, "Nota guardada." if nota.strip() else "Nota eliminada.")
-    return RedirectResponse(_destino_seguro(volver, f"/actividades/{parte['actividad_id']}"),
-                            status_code=303)
 
 
 def _borrar_definitivo(con: sqlite3.Connection, act_id: int) -> None:
