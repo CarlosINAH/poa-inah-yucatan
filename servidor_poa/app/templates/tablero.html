@@ -47,6 +47,10 @@
        {% if ver == 'compartidas' %}aria-current="true"{% endif %}>
       Actividades compartidas{% if n_compartidas %} <span class="tag" style="background:#fff3d6;color:#8a6100">{{ n_compartidas }}</span>{% endif %}
     </a>
+    {% if u.es_responsable %}
+    <a href="/tablero?ver=a_cargo{{ filtros }}" class="{{ 'on' if ver == 'a_cargo' }}"
+       {% if ver == 'a_cargo' %}aria-current="true"{% endif %}>A mi cargo</a>
+    {% endif %}
     {% if puede_todas %}
     <a href="/tablero?ver=todas{{ filtros }}" class="{{ 'on' if ver == 'todas' }}"
        {% if ver == 'todas' %}aria-current="true"{% endif %}>Todas</a>
@@ -232,7 +236,10 @@
 
   {% else %}
   <div class="empty">
-    {% if ver == 'empleado' %}
+    {% if ver == 'a_cargo' %}
+      No hay actividades donde seas el responsable de proyecto{% if trimestre %} del {{ trimestres[trimestre] }}{% endif %} de {{ anio }}.
+      Aquí aparecen todas las que te asignaron como responsable, para revisarlas y firmarlas.
+    {% elif ver == 'empleado' %}
       {% if empleado %}
       {{ empleado_nombre }} no tiene actividades confirmadas{% if trimestre %} del {{ trimestres[trimestre] }}{% endif %} de {{ anio }}.
       {% else %}

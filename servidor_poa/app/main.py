@@ -337,8 +337,11 @@ def tablero(request: Request, anio: int | None = None, trimestre: int = 0, q: st
     """
     anio = anio or consolidado.anio_por_defecto(con)
     puede_todas = bool(u["es_admin"] or u["es_responsable"])
-    ver = ver if ver in ("mias", "compartidas", "todas", "empleado") else "mias"
+    ver = ver if ver in ("mias", "compartidas", "todas", "empleado", "a_cargo") else "mias"
     if ver == "todas" and not puede_todas:
+        ver = "mias"
+    # «A mi cargo» (actividades donde soy el responsable de proyecto) es del responsable.
+    if ver == "a_cargo" and not u["es_responsable"]:
         ver = "mias"
     # «Por empleado» (ver el perfil de cada quien y descargar su PDF) es de la coordinación:
     # ve los resúmenes de todas las actividades de la persona.
@@ -377,6 +380,9 @@ def tablero(request: Request, anio: int | None = None, trimestre: int = 0, q: st
             f["mi_parte_id"] = datos.get("parte_id")
             f["etiquetada_por"] = datos.get("por")
             f["mi_estado"] = datos.get("estado")
+    elif ver == "a_cargo":
+        filas = consolidado.buscar(con, anio=anio, texto=q, zona=zona, trimestre=trimestre,
+                                   solo_de=u["id"], relacion="a_cargo")
     elif ver == "mias":
         filas = consolidado.buscar(con, anio=anio, texto=q, zona=zona, trimestre=trimestre,
                                    solo_de=u["id"], relacion="mias")
