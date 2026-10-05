@@ -14,12 +14,14 @@ import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 from .db import FIRMAS_DIR
 
-MAX_BYTES = 3 * 1024 * 1024      # una firma no debería pesar más que esto
+MAX_BYTES = 3 * 1024 * 1024      # una firma dibujada no debería pesar más que esto
+MAX_BYTES_SUBIDA = 15 * 1024 * 1024   # una firma subida (escaneo/foto) puede pesar más
 LADO_MAXIMO = 1000               # px del lado mayor; de sobra para imprimirla nítida
+UMBRAL_FONDO = 205               # claridad a partir de la cual se considera «papel» (se vuelve transparente)
 
 
 class FirmaInvalida(Exception):
@@ -64,6 +66,46 @@ def procesar(data_url: str) -> str:
 
     if recorte.width < 2 or recorte.height < 2:
         raise FirmaInvalida("La firma quedó vacía. Traza tu firma antes de guardar.")
+
+    recorte.thumbnail((LADO_MAXIMO, LADO_MAXIMO), Image.LANCZOS)
+    salida = io.BytesIO()
+    recorte.save(salida, format="PNG", optimize=True)
+
+    FIRMAS_DIR.mkdir(parents=True, exist_ok=True)
+    archivo = _nombre_archivo()
+    (FIRMAS_DIR / archivo).write_bytes(salida.getvalue())
+    return archivo
+
+
+def procesar_subida(datos: bytes) -> str:
+    """Procesa una firma SUBIDA como imagen (escaneo o foto de la firma sobre papel):
+    quita el fondo claro para dejarla transparente, la recorta y la guarda como PNG.
+
+    Sirve cuando la persona no puede firmar en pantalla (p. ej. por incapacidad médica) y
+    la coordinación carga su firma a partir de un archivo. Devuelve el nombre del PNG.
+    """
+    if not datos:
+        raise FirmaInvalida("El archivo llegó vacío.")
+    if len(datos) > MAX_BYTES_SUBIDA:
+        raise FirmaInvalida("La imagen de la firma pesa demasiado (máximo 15 MB).")
+    try:
+        with Image.open(io.BytesIO(datos)) as im:
+            im = ImageOps.exif_transpose(im).convert("RGBA")
+    except (OSError, ValueError) as exc:
+        raise FirmaInvalida(
+            "No pude leer el archivo como imagen. Sube un PNG o JPG de la firma."
+        ) from exc
+
+    # El fondo (papel) se vuelve transparente y la tinta se conserva: entre más oscuro el
+    # trazo, más opaco queda, para que se estampe limpio sobre la línea de firma.
+    gris = im.convert("L")
+    alfa = gris.point(lambda p: 0 if p >= UMBRAL_FONDO
+                      else min(255, round((UMBRAL_FONDO - p) * 255 / UMBRAL_FONDO)))
+    im.putalpha(alfa)
+    recorte = _recortar(im)
+    if recorte.width < 3 or recorte.height < 3:
+        raise FirmaInvalida("No se distingue la firma en la imagen (¿quedó casi todo en "
+                            "blanco?). Usa una foto nítida del trazo sobre papel claro.")
 
     recorte.thumbnail((LADO_MAXIMO, LADO_MAXIMO), Image.LANCZOS)
     salida = io.BytesIO()

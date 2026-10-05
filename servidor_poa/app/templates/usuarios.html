@@ -101,6 +101,21 @@
                   <span>Coordinación{% if p.id == u.id %} (no puedes quitártela){% endif %}</span></label>
                 <div class="actions"><button class="btn sm primary" type="submit">Guardar</button></div>
               </form>
+
+              <form method="post" action="/admin/usuarios/{{ p.id }}/firma"
+                    enctype="multipart/form-data" class="stack" style="margin-top:10px">
+                <label class="fld">
+                  <span>Cargar firma desde imagen
+                    {% if p.firma %}<span class="tag" style="background:#e4f5e8;color:#1c7a3f">tiene firma</span>
+                    {% else %}<span class="muted">(sin firma)</span>{% endif %}</span>
+                  <input type="file" name="archivo" accept="image/*" required>
+                </label>
+                <p class="muted" style="font-size:11px">Para quien no puede firmar en pantalla.
+                  Sube una foto o escaneo nítido del trazo sobre papel claro; se le quita el
+                  fondo automáticamente.</p>
+                <div class="actions"><button class="btn sm" type="submit">Cargar firma</button></div>
+              </form>
+
               {% if p.id != u.id %}
               <form method="post" action="/admin/usuarios/{{ p.id }}/eliminar" style="margin-top:8px"
                     onsubmit="return confirm('¿Eliminar a {{ p.nombre }}? Si tiene actividades o participaciones, no se borra: se desactiva.')">
