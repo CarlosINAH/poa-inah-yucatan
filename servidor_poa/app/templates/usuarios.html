@@ -87,41 +87,34 @@
             </form>
             {% endif %}
 
-            <details style="margin-top:6px">
-              <summary style="cursor:pointer;font-size:12px">Editar datos</summary>
-              <form method="post" action="/admin/usuarios/{{ p.id }}/editar" class="stack" style="margin-top:8px">
-                <label class="fld"><span>Nombre</span>
-                  <input name="nombre" value="{{ p.nombre }}" required minlength="3"></label>
-                <label class="fld"><span>Cargo</span>
-                  <input name="cargo" value="{{ p.cargo }}"></label>
-                <label class="chk-inline"><input type="checkbox" name="es_responsable" value="1"
-                  {% if p.es_responsable %}checked{% endif %}> <span>Responsable de proyecto</span></label>
-                <label class="chk-inline"><input type="checkbox" name="es_admin" value="1"
-                  {% if p.es_admin %}checked{% endif %} {% if p.id == u.id %}disabled{% endif %}>
-                  <span>Coordinación{% if p.id == u.id %} (no puedes quitártela){% endif %}</span></label>
-                <div class="actions"><button class="btn sm primary" type="submit">Guardar</button></div>
-              </form>
+            <details class="editar-persona" style="margin-top:6px">
+              <summary class="btn sm">Editar datos</summary>
+              <div class="editar-persona-panel">
+                <form method="post" action="/admin/usuarios/{{ p.id }}/editar" class="stack">
+                  <label class="fld"><span>Nombre</span>
+                    <input name="nombre" value="{{ p.nombre }}" required minlength="3"></label>
+                  <label class="fld"><span>Cargo</span>
+                    <input name="cargo" value="{{ p.cargo }}" placeholder="p. ej. Restaurador"></label>
+                  <label class="chk-inline"><input type="checkbox" name="es_responsable" value="1"
+                    {% if p.es_responsable %}checked{% endif %}> <span>Responsable de proyecto</span></label>
+                  <label class="chk-inline"><input type="checkbox" name="es_admin" value="1"
+                    {% if p.es_admin %}checked{% endif %} {% if p.id == u.id %}disabled{% endif %}>
+                    <span>Coordinación{% if p.id == u.id %} (no puedes quitártela){% endif %}</span></label>
+                  <div class="actions"><button class="btn sm primary" type="submit">Guardar</button></div>
+                </form>
 
-              <form method="post" action="/admin/usuarios/{{ p.id }}/firma"
-                    enctype="multipart/form-data" class="stack" style="margin-top:10px">
-                <label class="fld">
-                  <span>Cargar firma desde imagen
-                    {% if p.firma %}<span class="tag" style="background:#e4f5e8;color:#1c7a3f">tiene firma</span>
-                    {% else %}<span class="muted">(sin firma)</span>{% endif %}</span>
-                  <input type="file" name="archivo" accept="image/*" required>
-                </label>
-                <p class="muted" style="font-size:11px">Para quien no puede firmar en pantalla.
-                  Sube una foto o escaneo nítido del trazo sobre papel claro; se le quita el
-                  fondo automáticamente.</p>
-                <div class="actions"><button class="btn sm" type="submit">Cargar firma</button></div>
-              </form>
+                <p class="muted" style="font-size:11px;margin:10px 0 0">
+                  La firma se registra desde <b>Mi firma</b>: cada quien dibuja la suya al
+                  entrar. {% if p.firma %}<span class="tag" style="background:#e4f5e8;color:#1c7a3f">ya tiene firma</span>{% else %}<span class="muted">(aún sin firma)</span>{% endif %}
+                </p>
 
-              {% if p.id != u.id %}
-              <form method="post" action="/admin/usuarios/{{ p.id }}/eliminar" style="margin-top:8px"
-                    onsubmit="return confirm('¿Eliminar a {{ p.nombre }}? Si tiene actividades o participaciones, no se borra: se desactiva.')">
-                <button class="btn sm danger" type="submit">Eliminar persona</button>
-              </form>
-              {% endif %}
+                {% if p.id != u.id %}
+                <form method="post" action="/admin/usuarios/{{ p.id }}/eliminar" style="margin-top:10px"
+                      onsubmit="return confirm('¿Eliminar a {{ p.nombre }}? Si tiene actividades o participaciones, no se borra: se desactiva.')">
+                  <button class="btn sm danger" type="submit">Eliminar persona</button>
+                </form>
+                {% endif %}
+              </div>
             </details>
           </td>
         </tr>

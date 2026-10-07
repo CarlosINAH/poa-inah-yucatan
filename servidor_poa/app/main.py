@@ -156,10 +156,16 @@ def inicio(request: Request, u: sqlite3.Row = Depends(exigir_sesion),
     """
     anio = consolidado.anio_por_defecto(con)
     mias = len(consolidado.buscar(con, anio=anio, solo_de=u["id"], relacion="mias"))
+    # Panel del responsable: lo que espera su firma y lo que tiene a su cargo este año.
+    pendientes = (consolidado.cuenta_pendientes(con, u["id"])
+                  if (u["es_admin"] or u["es_responsable"]) else 0)
+    a_cargo = (len(consolidado.buscar(con, anio=anio, solo_de=u["id"], relacion="a_cargo"))
+               if u["es_responsable"] else 0)
     return vista(request, "inicio.html", {
         "u": u, "anio": anio, "mias": mias,
         "total": consolidado.kpis(con, anio)["actividades"],
         "compartidas": consolidado.cuenta_compartidas(con, u["id"], anio),
+        "pendientes": pendientes, "a_cargo": a_cargo,
     })
 
 
@@ -331,12 +337,14 @@ def tablero(request: Request, anio: int | None = None, trimestre: int = 0, q: st
     """El tablero ES la lista de actividades: no hay una pantalla aparte que repita.
 
     Pestañas: «mis actividades» (donde ya confirmé que participé), «actividades
-    compartidas» (donde alguien me etiquetó y falta que confirme) y, para la
-    coordinación y los responsables, «todas» las de la Sección y «por empleado» (la
-    coordinación no participa: revisa y descarga lo de cada quien).
+    compartidas» (donde alguien me etiquetó y falta que confirme). El responsable ve
+    además «a mi cargo» y «autorizadas» (sólo lo suyo). «Todas» las de la Sección y «por
+    empleado» son exclusivas de la coordinación: es la única que ve todo lo capturado.
     """
     anio = anio or consolidado.anio_por_defecto(con)
-    puede_todas = bool(u["es_admin"] or u["es_responsable"])
+    # Sólo la coordinación ve TODAS las actividades capturadas. El responsable se limita a
+    # las suyas (pestañas «A mi cargo» y «Autorizadas»); el empleado, a las que participa.
+    puede_todas = bool(u["es_admin"])
     ver = ver if ver in ("mias", "compartidas", "todas", "empleado",
                          "a_cargo", "autorizadas") else "mias"
     if ver == "todas" and not puede_todas:
@@ -1411,31 +1419,8 @@ def eliminar_usuario(request: Request, uid: int, u: sqlite3.Row = Depends(exigir
     return RedirectResponse("/admin/usuarios", status_code=303)
 
 
-@app.post("/admin/usuarios/{uid}/firma")
-async def admin_cargar_firma(request: Request, uid: int, archivo: UploadFile,
-                             u: sqlite3.Row = Depends(exigir_admin),
-                             con: sqlite3.Connection = Depends(bd)):
-    """La coordinación carga la firma de una persona a partir de una imagen (escaneo o
-    foto), para quien no puede firmar en pantalla. Se limpia el fondo y se guarda igual que
-    una firma dibujada, así que sirve para autorizar y se estampa en los PDF."""
-    objetivo = con.execute("SELECT id, nombre, firma FROM usuarios WHERE id = ?",
-                           (uid,)).fetchone()
-    if objetivo is None:
-        raise HTTPException(404, "Esa persona no existe.")
-    datos = await archivo.read()
-    try:
-        nombre_archivo = firmas_mod.procesar_subida(datos)
-    except firmas_mod.FirmaInvalida as exc:
-        avisar(request, str(exc))
-        return RedirectResponse("/admin/usuarios", status_code=303)
-    anterior = objetivo["firma"]
-    con.execute("UPDATE usuarios SET firma = ? WHERE id = ?", (nombre_archivo, uid))
-    con.commit()
-    if anterior:
-        firmas_mod.eliminar(anterior)
-    avisar(request, f"Se cargó la firma de {objetivo['nombre']}. Ya puede usarse para "
-                    "autorizar y aparecerá en los PDF.")
-    return RedirectResponse("/admin/usuarios", status_code=303)
+# La firma se registra únicamente desde «Mi firma» (dibujada por cada persona). Se retiró
+# la carga por imagen desde el panel de Personal: un solo lugar, sin confusiones.
 
 
 # La importación de históricos (Excel) se retiró de la interfaz por el momento. El motor

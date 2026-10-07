@@ -457,6 +457,22 @@
     .edit-banner .ico { width: 18px; height: 18px; color: var(--warn); flex: none; }
     .edit-banner span { flex: 1; }
 
+    /* Panel «Editar datos» del Personal: se despliega como una tarjeta de ancho propio,
+       no apretada dentro de la celda. El summary se ve como un botón pequeño. */
+    .editar-persona > summary { list-style: none; display: inline-flex; cursor: pointer; }
+    .editar-persona > summary::-webkit-details-marker { display: none; }
+    .editar-persona[open] > summary { margin-bottom: 8px; }
+    .editar-persona-panel {
+      width: 300px; max-width: 82vw;
+      padding: 14px;
+      border-radius: var(--r-md);
+      background: var(--glass);
+      border: 1px solid var(--glass-border-soft);
+      box-shadow: var(--shadow-md), var(--specular);
+    }
+    .editar-persona-panel .fld { margin: 0 0 10px; }
+    .editar-persona-panel .chk-inline { margin: 2px 0; }
+
     /* KPI tiles */
     .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
     .kpi {
@@ -620,6 +636,18 @@
     .op-texto b { font-size: 18px; font-weight: 750; }
     .op-texto span { font-size: 13.5px; color: var(--muted); line-height: 1.45; }
     .op-flecha { font-size: 22px; color: var(--muted); }
+    /* Contador de pendientes en una opción del inicio (p. ej. firmas por autorizar). */
+    .op-badge {
+      min-width: 30px; height: 30px; padding: 0 9px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 999px; font-weight: 750; font-size: 15px;
+      background: rgba(var(--warn-rgb), .22); color: var(--warn);
+      border: 1px solid rgba(var(--warn-rgb), .45);
+    }
+    .opcion-grande.alerta {
+      background: rgba(var(--warn-rgb), .10);
+      border-color: rgba(var(--warn-rgb), .45);
+    }
     .nota-inicio {
       max-width: 760px; margin-top: 18px; font-size: 13px; color: var(--muted);
       line-height: 1.5;

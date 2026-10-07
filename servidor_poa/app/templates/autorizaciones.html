@@ -95,6 +95,13 @@
   </div>
 </section>
 {% else %}
+{% set acc = namespace(n=0) %}
+{% for g in grupos %}{% set acc.n = acc.n + (g.actividades | length) %}{% endfor %}
+<div class="edit-banner" style="margin-bottom:14px">
+  <span><b>{{ acc.n }}</b> actividad{{ 'es' if acc.n != 1 }} por firmar,
+    de <b>{{ grupos | length }}</b> persona{{ 's' if grupos | length != 1 }}.
+    Marca las que autorizas y firma al final.</span>
+</div>
 <form method="post" action="/autorizaciones/autorizar" class="stack">
   {% for g in grupos %}
   <section class="card">

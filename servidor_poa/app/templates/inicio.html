@@ -30,17 +30,45 @@
     <span class="op-flecha" aria-hidden="true">→</span>
   </a>
 
-  {% if u.es_admin or u.es_responsable %}
+  {% if u.es_responsable %}
+  {# Panel del responsable: lo que espera su firma y lo que tiene a su cargo. #}
+  <a class="opcion-grande {% if pendientes %}alerta{% endif %}" href="/autorizaciones">
+    <span class="op-icono" aria-hidden="true">✍️</span>
+    <span class="op-texto">
+      <b>Autorizaciones pendientes</b>
+      <span>{% if pendientes %}{{ pendientes }} actividad{{ 'es' if pendientes != 1 }}
+        esperan tu firma como responsable. Fírmalas para habilitar su PDF.
+        {% else %}No tienes solicitudes de firma pendientes. Todo al día.{% endif %}</span>
+    </span>
+    {% if pendientes %}<span class="op-badge" aria-label="{{ pendientes }} pendientes">{{ pendientes }}</span>
+    {% else %}<span class="op-flecha" aria-hidden="true">→</span>{% endif %}
+  </a>
+
+  <a class="opcion-grande" href="/tablero?ver=a_cargo">
+    <span class="op-icono" aria-hidden="true">🗂️</span>
+    <span class="op-texto">
+      <b>Actividades a mi cargo</b>
+      <span>{% if a_cargo %}{{ a_cargo }} actividad{{ 'es' if a_cargo != 1 }} de {{ anio }}
+        de las que eres responsable.{% else %}Aún no tienes actividades a tu cargo en {{ anio }}.{% endif %}
+        Revisa y firma lo que te corresponde.</span>
+    </span>
+    <span class="op-flecha" aria-hidden="true">→</span>
+  </a>
+  {% endif %}
+
+  {% if u.es_admin %}
   <a class="opcion-grande" href="/tablero?ver=todas">
     <span class="op-icono" aria-hidden="true">👥</span>
     <span class="op-texto">
       <b>Ver las de toda la Sección</b>
-      <span>Las {{ total }} actividades de {{ anio }}. Si alguien ya registró algo en lo
-        que participaste, ahí puedes sumarte en vez de repetirlo.</span>
+      <span>Las {{ total }} actividades de {{ anio }}. Sólo la coordinación ve todo lo
+        capturado por la Sección.</span>
     </span>
     <span class="op-flecha" aria-hidden="true">→</span>
   </a>
+  {% endif %}
 
+  {% if u.es_admin or u.es_responsable %}
   <a class="opcion-grande" href="/consolidado">
     <span class="op-icono" aria-hidden="true">📊</span>
     <span class="op-texto">
