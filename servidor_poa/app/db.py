@@ -286,6 +286,31 @@ def _migrar(con: sqlite3.Connection) -> None:
         con.execute("ALTER TABLE participaciones ADD COLUMN nota_por INTEGER REFERENCES usuarios(id)")
         con.execute("ALTER TABLE participaciones ADD COLUMN nota_en TEXT NOT NULL DEFAULT ''")
 
+    # Alta de Federica Sodi Miranda como responsable de proyecto (puede entrar, firmar y
+    # autorizar). Idempotente: sólo inserta si todavía no existe por nombre. Entra sin PIN,
+    # lo define la primera vez que entra, igual que el resto.
+    con.execute(
+        """INSERT INTO usuarios
+             (usuario, nombre, cargo, grupo, es_responsable, es_admin,
+              pin_hash, activo, creado_en)
+           SELECT 'federica.sodi', 'Federica Sodi Miranda', 'Restauradora',
+                  'Responsables de proyecto', 1, 0, '', 1, ?
+            WHERE NOT EXISTS (SELECT 1 FROM usuarios WHERE nombre = 'Federica Sodi Miranda')""",
+        (ahora(),))
+
+    # Federica queda como responsable de las actividades de Judith Atcire Martinez Sarabia.
+    # Sólo rellena las que aún no tienen responsable: así no pisa una asignación hecha a mano
+    # en «Editar ficha», y al mismo tiempo cubre las nuevas que ella registre.
+    con.execute(
+        """UPDATE actividades
+              SET responsable_id = (SELECT id FROM usuarios WHERE nombre = 'Federica Sodi Miranda')
+            WHERE responsable_id IS NULL
+              AND eliminada_en = ''
+              AND EXISTS (SELECT 1 FROM participaciones p JOIN usuarios u ON u.id = p.usuario_id
+                           WHERE p.actividad_id = actividades.id
+                             AND u.nombre = 'Judith Atcire Martinez Sarabia')
+              AND EXISTS (SELECT 1 FROM usuarios WHERE nombre = 'Federica Sodi Miranda')""")
+
     # v3.5: coordenadas de cada zona para el mapa del informe.
     zona_cols = {f["name"] for f in con.execute("PRAGMA table_info(zonas)")}
     if "lat" not in zona_cols:
