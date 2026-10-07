@@ -458,7 +458,7 @@
     .edit-banner span { flex: 1; }
 
     /* KPI tiles */
-    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
     .kpi {
       padding: 16px 16px 14px;
       border-radius: var(--r-md);
