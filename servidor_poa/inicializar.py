@@ -29,6 +29,7 @@ PERSONAL = [
     ("Karla Martínez López", "Restauradora · Coordinadora de la Sección de Conservación",
      "Responsables de proyecto", 1, 1),
     ("Claudia A. Gracia Solís", "Restauradora", "Responsables de proyecto", 1, 0),
+    ("Federica Sodi Miranda", "Restauradora", "Responsables de proyecto", 1, 0),
     ("Carlos Alberto Gálvez Valencia", "Técnico / Programador", "Empleados", 0, 1),
     ("César Téllez Castro", "Restaurador", "Empleados", 0, 0),
     ("Martha Angélica Soto Velázquez", "Restauradora", "Empleados", 0, 0),
